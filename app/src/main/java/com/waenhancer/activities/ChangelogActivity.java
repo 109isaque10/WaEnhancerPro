@@ -20,7 +20,8 @@ import com.waenhancer.UpdateDownloader;
 import com.waenhancer.activities.base.BaseActivity;
 import com.waenhancer.UpdateChecker;
 import com.google.android.material.tabs.TabLayout;
-import com.facebook.shimmer.ShimmerFrameLayout;
+// import com.facebook.shimmer.ShimmerFrameLayout;
+import com.google.android.material.progressindicator.CircularProgressIndicator;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -41,7 +42,8 @@ public class ChangelogActivity extends BaseActivity {
     public static final String EXTRA_TARGET_CHANNEL = "target_channel";
 
     private RecyclerView recyclerView;
-    private ShimmerFrameLayout shimmerFrameLayout;
+    // private ShimmerFrameLayout shimmerFrameLayout;
+    private CircularProgressIndicator progressIndicator;
     private TabLayout tabLayout;
     private ChangelogAdapter adapter;
     private final List<JSONObject> stableReleases = new ArrayList<>();
@@ -61,7 +63,8 @@ public class ChangelogActivity extends BaseActivity {
         toolbar.setNavigationOnClickListener(v -> navigateToHome());
 
         recyclerView = findViewById(R.id.changelog_recycler);
-        shimmerFrameLayout = findViewById(R.id.shimmer_view_container);
+        // shimmerFrameLayout = findViewById(R.id.shimmer_view_container);
+        progressIndicator = findViewById(R.id.expressive_loading_progress);
         tabLayout = findViewById(R.id.tabs);
 
         tabLayout.addTab(tabLayout.newTab().setText(R.string.release_channel_stable));
@@ -117,8 +120,9 @@ public class ChangelogActivity extends BaseActivity {
     }
 
     private void fetchChangelog() {
-        shimmerFrameLayout.setVisibility(View.VISIBLE);
-        shimmerFrameLayout.startShimmer();
+        // shimmerFrameLayout.setVisibility(View.VISIBLE);
+        // shimmerFrameLayout.startShimmer();
+        if (progressIndicator != null) progressIndicator.setVisibility(View.VISIBLE);
         tabLayout.setVisibility(View.GONE);
         recyclerView.setVisibility(View.GONE);
         
@@ -141,8 +145,9 @@ public class ChangelogActivity extends BaseActivity {
                     categorizeReleases(releases);
                     
                     runOnUiThread(() -> {
-                        shimmerFrameLayout.stopShimmer();
-                        shimmerFrameLayout.setVisibility(View.GONE);
+                        // shimmerFrameLayout.stopShimmer();
+                        // shimmerFrameLayout.setVisibility(View.GONE);
+                        if (progressIndicator != null) progressIndicator.setVisibility(View.GONE);
                         tabLayout.setVisibility(View.VISIBLE);
                         recyclerView.setVisibility(View.VISIBLE);
                         
@@ -162,8 +167,9 @@ public class ChangelogActivity extends BaseActivity {
                 }
             } catch (Exception e) {
                 runOnUiThread(() -> {
-                    shimmerFrameLayout.stopShimmer();
-                    shimmerFrameLayout.setVisibility(View.GONE);
+                    // shimmerFrameLayout.stopShimmer();
+                    // shimmerFrameLayout.setVisibility(View.GONE);
+                    if (progressIndicator != null) progressIndicator.setVisibility(View.GONE);
                     Toast.makeText(this, "Failed to load changelog: " + e.getMessage(), Toast.LENGTH_LONG).show();
                 });
             }

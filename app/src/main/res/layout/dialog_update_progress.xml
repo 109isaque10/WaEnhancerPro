@@ -8,11 +8,10 @@
 
     <com.google.android.material.progressindicator.LinearProgressIndicator
         android:id="@+id/update_progress_bar"
+        style="@style/Widget.WaEnhancer.LinearProgressIndicator.Expressive"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:indeterminate="false"
-        app:trackThickness="8dp"
-        app:trackCornerRadius="4dp" />
+        android:indeterminate="false" />
 
     <com.google.android.material.textview.MaterialTextView
         android:id="@+id/update_status_text"

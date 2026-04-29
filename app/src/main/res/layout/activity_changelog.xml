@@ -53,7 +53,7 @@
             android:layout_width="match_parent"
             android:layout_height="match_parent">
 
-            <com.facebook.shimmer.ShimmerFrameLayout
+            <!-- com.facebook.shimmer.ShimmerFrameLayout
                 android:id="@+id/shimmer_view_container"
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
@@ -74,7 +74,16 @@
 
                 </LinearLayout>
 
-            </com.facebook.shimmer.ShimmerFrameLayout>
+            </com.facebook.shimmer.ShimmerFrameLayout -->
+
+            <com.google.android.material.progressindicator.CircularProgressIndicator
+                android:id="@+id/expressive_loading_progress"
+                style="@style/Widget.WaEnhancer.CircularProgressIndicator.Expressive"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:indeterminate="true"
+                android:visibility="gone" />
 
             <androidx.recyclerview.widget.RecyclerView
                 android:id="@+id/changelog_recycler"
