@@ -168,6 +168,7 @@
                             android:layout_alignParentEnd="true"
                             android:layout_alignParentTop="true"
                             android:layout_margin="12dp"
+                            android:visibility="gone"
                             app:icon="@drawable/ic_logs"
                             app:iconSize="24dp"
                             app:iconTint="?attr/colorOnSurfaceVariant" />
