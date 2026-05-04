@@ -16,18 +16,26 @@ public class ThemeUtils {
     }
 
     public static int getThemeBackgroundColor(Context context, boolean isDark) {
-        return isDark ? 0xff0b141a : 0xffffffff;
+        return isDark ? 0xff080808 : 0xfff8f9fa;
+    }
+
+    public static int getThemeCardColor(Context context, boolean isDark) {
+        return isDark ? 0xff121212 : 0xffffffff;
     }
 
     public static int getThemeTextColorPrimary(Context context, boolean isDark) {
-        return isDark ? 0xffffffff : 0xff000000;
+        return isDark ? 0xffececec : 0xff1a1a1a;
     }
 
     public static int getThemeTextColorSecondary(Context context, boolean isDark) {
-        return isDark ? 0xff8696a0 : 0xff667781;
+        return isDark ? 0xff9e9e9e : 0xff70757a;
     }
 
     public static int getThemeAccentColor(Context context) {
-        return 0xff25d366; // WhatsApp Green
+        return 0xff00a884; // WhatsApp Teal (Premium)
+    }
+
+    public static int getThemeAccentColorSecondary(Context context) {
+        return 0xff00d4a1; // Brighter Teal for gradients
     }
 }

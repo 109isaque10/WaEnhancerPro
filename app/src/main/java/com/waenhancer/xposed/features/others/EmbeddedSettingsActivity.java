@@ -28,6 +28,22 @@ public class EmbeddedSettingsActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         host = SettingsViewBuilder.buildHost(this);
         setContentView(host.root);
+        
+        // Status Bar Coloring
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP) {
+            getWindow().addFlags(android.view.WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS);
+            getWindow().setStatusBarColor(ThemeUtils.getThemeBackgroundColor(this, isDark));
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+                int flags = getWindow().getDecorView().getSystemUiVisibility();
+                if (!isDark) {
+                    flags |= android.view.View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR;
+                } else {
+                    flags &= ~android.view.View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR;
+                }
+                getWindow().getDecorView().setSystemUiVisibility(flags);
+            }
+        }
+
         FilePicker.registerFilePicker(this);
 
         host.backButton.setOnClickListener(v -> handleBack());

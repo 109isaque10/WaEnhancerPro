@@ -243,8 +243,9 @@ public abstract class EmbeddedBasePreferenceFragment extends PreferenceFragmentC
         if (getListView() != null) {
             getListView().setVerticalScrollBarEnabled(false);
             getListView().setClipToPadding(false);
-            getListView().setPadding(0, 0, 0, Utils.dipToPixels(16));
+            getListView().setPadding(0, Utils.dipToPixels(12), 0, Utils.dipToPixels(24));
         }
+        setDivider(null);
     }
 
     protected void refreshSpecialSummaries() {
