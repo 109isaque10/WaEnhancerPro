@@ -711,7 +711,7 @@ public class AlertDialogWpp {
                     android.content.res.ColorStateList posRippleColor = android.content.res.ColorStateList.valueOf(0x22FFFFFF);
                     android.graphics.drawable.RippleDrawable posRipple = new android.graphics.drawable.RippleDrawable(posRippleColor, posBg, null);
                     posButton.setBackground(posRipple);
-                    posButton.setTextColor(android.graphics.Color.WHITE);
+                    posButton.setTextColor(isDarkMode ? android.graphics.Color.BLACK : android.graphics.Color.WHITE);
                     
                     posButton.setOnClickListener(v -> {
                         if (mPositiveListener != null) {
