@@ -1,12 +1,5 @@
-[Added]
-- Added option to change group admin indicator as text/emoji in settings.
-- Added option (in WAEX Changelog Settings) to set frequency for update alerts in WhatsApp when ignored a version.
-
-[Improvements]
-- Converted static group admin icon image to text for better control.
+[Restored]
+- Option to hide ads between status updates
 
 [Fixes]
-- Fixed unexpected crash on app startup for some devices.
-- Fixed downloading profile photo icon.
-- Fixed show/hide group admin icon.
-- Fixed View Once media download
+- Fixed crashes HideReciept, HideSeen, FilterGroup

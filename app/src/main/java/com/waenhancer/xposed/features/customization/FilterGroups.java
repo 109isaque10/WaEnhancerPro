@@ -50,6 +50,8 @@ public class FilterGroups extends Feature {
 
     @Override
     public void doHook() throws Throwable {
+        // Feature disabled due to technical instability in WhatsApp 2.26.xx
+        if (true) return;
 
         if (!prefs.getBoolean("filtergroups", false) || prefs.getBoolean("separategroups", false))
             return;

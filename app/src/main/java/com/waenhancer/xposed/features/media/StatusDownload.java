@@ -107,7 +107,7 @@ public class StatusDownload extends Feature {
 
             var file = fMessageWpp.getMediaFile();
             if (file == null) {
-                Utils.showToast(com.waenhancer.xposed.core.FeatureLoader.getModuleString(R.string.download_not_available, "Download not available"), 1);
+                Utils.showToast(com.waenhancer.xposed.core.FeatureLoader.getModuleString(R.string.download_not_available, "Please wait until it is fully downloaded in WhatsApp before trying again."), 1);
                 return;
             }
 
@@ -149,7 +149,7 @@ public class StatusDownload extends Feature {
         try {
             var file = fMessage.getMediaFile();
             if (file == null) {
-                Utils.showToast(com.waenhancer.xposed.core.FeatureLoader.getModuleString(R.string.download_not_available, "Download not available"), 1);
+                Utils.showToast(com.waenhancer.xposed.core.FeatureLoader.getModuleString(R.string.download_not_available, "Please wait until it is fully downloaded in WhatsApp before trying again."), 1);
                 return;
             }
             var userJid = fMessage.getUserJid();

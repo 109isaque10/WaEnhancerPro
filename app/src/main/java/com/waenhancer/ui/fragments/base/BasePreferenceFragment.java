@@ -342,8 +342,8 @@ public abstract class BasePreferenceFragment extends PreferenceFragmentCompat
         setPreferenceState("showonlinetext", !freezelastseen);
         setPreferenceState("dotonline", !freezelastseen);
 
-        var separategroups = mPrefs.getBoolean("separategroups", false);
-        setPreferenceState("filtergroups", !separategroups);
+        boolean separategroups = mPrefs.getBoolean("separategroups", false);
+        setPreferenceState("filtergroups", false); // Forced disabled
 
         var filtergroups = mPrefs.getBoolean("filtergroups", false);
 
@@ -359,9 +359,10 @@ public abstract class BasePreferenceFragment extends PreferenceFragmentCompat
 
         var supported = isSeparateGroupSupported();
         updateGroupPref("separategroups", supported, R.string.separate_groups_sum, R.string.separate_groups_unsupported_sum);
+        // Fully disable FilterGroups due to technical instability
+        setPreferenceState("filtergroups", false);
         var filterGroupsPreference = findPreference("filtergroups");
         if (filterGroupsPreference != null) {
-            filterGroupsPreference.setEnabled(true);
             filterGroupsPreference.setSummary(R.string.new_ui_group_filter_sum);
         }
 

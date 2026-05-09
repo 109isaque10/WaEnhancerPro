@@ -517,6 +517,14 @@ public class FeatureCatalog {
                                 null,
                                 Arrays.asList("toast", "viewed", "status", "notification")));
 
+                catalog.add(new SearchableFeature("disable_ads",
+                                context.getString(R.string.disable_ads),
+                                context.getString(R.string.disable_ads_sum),
+                                SearchableFeature.Category.PRIVACY,
+                                SearchableFeature.FragmentType.PRIVACY,
+                                null,
+                                Arrays.asList("ads", "disable", "status", "stories", "advertising")));
+
                 // PRIVACY FRAGMENT
                 catalog.add(new SearchableFeature("typearchive",
                                 context.getString(R.string.hide_archived_chat),

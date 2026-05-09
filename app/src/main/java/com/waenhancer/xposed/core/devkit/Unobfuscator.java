@@ -256,7 +256,7 @@ public class Unobfuscator {
             var methods = dexkit.findMethod(
                     FindMethod.create()
                             .matcher(MethodMatcher.create()
-                                    .usingStrings(Arrays.asList("receipt", "read", "played"), StringMatchType.Contains, true)
+                                    .usingStrings(Arrays.asList("receipt", "read", "played"), StringMatchType.Contains, false)
                                     .paramCount(4, 15)));
 
             for (var method : methods) {
@@ -277,9 +277,14 @@ public class Unobfuscator {
                 }
             }
 
-            // Strategy 3: Try finding via SendReadReceiptJob
+            // Strategy 3: Try finding via SendReadReceiptJob (or plural)
             try {
-                var jobClass = findFirstClassUsingName(classLoader, StringMatchType.EndsWith, "SendReadReceiptJob");
+                Class<?> jobClass;
+                try {
+                    jobClass = findFirstClassUsingName(classLoader, StringMatchType.EndsWith, "SendReadReceiptJob");
+                } catch (Exception e) {
+                    jobClass = findFirstClassUsingName(classLoader, StringMatchType.EndsWith, "SendReadReceiptsJob");
+                }
                 var jobData = dexkit.getClassData(jobClass);
                 if (jobData != null) {
                     for (var jobMethod : jobData.getMethods()) {
@@ -290,6 +295,24 @@ public class Unobfuscator {
                                     return invoke.getMethodInstance(classLoader);
                                 }
                             }
+                        }
+                    }
+                }
+            } catch (Exception ignored) {}
+
+            // Strategy 4: Broad search for methods containing "receipt" and taking JID + 2+ Strings
+            try {
+                var fallbackMethods = dexkit.findMethod(
+                        FindMethod.create()
+                                .matcher(MethodMatcher.create()
+                                        .addUsingString("receipt", StringMatchType.Contains)
+                                        .paramCount(3, 15)));
+                for (var method : fallbackMethods) {
+                    var params = method.getParamTypeNames();
+                    if (params.contains(classJid.getName()) || params.contains(classDeviceJid.getName())) {
+                        long stringsCount = params.stream().filter(p -> p.equals("java.lang.String")).count();
+                        if (stringsCount >= 2) {
+                            return method.getMethodInstance(classLoader);
                         }
                     }
                 }
@@ -2014,9 +2037,13 @@ public class Unobfuscator {
     public synchronized static Method getFilterInitMethod(ClassLoader loader) throws Exception {
         return UnobfuscatorCache.getInstance().getMethod(loader, () -> {
             var filterAdaperClass = Unobfuscator.loadFilterAdaperClass(loader);
-            var constructor = filterAdaperClass.getConstructors()[0];
-            var methods = dexkit.findMethod(new FindMethod()
-                    .matcher(new MethodMatcher().addInvoke(DexSignUtil.getMethodDescriptor(constructor))));
+            var constructors = filterAdaperClass.getConstructors();
+            var methods = new java.util.ArrayList<org.luckypray.dexkit.result.MethodData>();
+            for (var constructor : constructors) {
+                methods.addAll(dexkit.findMethod(new FindMethod()
+                        .matcher(new MethodMatcher().addInvoke(DexSignUtil.getMethodDescriptor(constructor)))));
+            }
+
             if (methods.isEmpty())
                 throw new RuntimeException("FilterInit method not found");
             var cFrag = XposedHelpers.findClass("com.whatsapp.conversationslist.ConversationsFragment", loader);
@@ -2034,6 +2061,44 @@ public class Unobfuscator {
                 // Strategy 3: Find any method that takes ConversationsFragment as any parameter
                 method = methods.stream().filter(m -> m.getParamTypes().stream()
                         .anyMatch(p -> p.getName().equals(cFrag.getName()))).findFirst().orElse(null);
+            }
+
+            if (method == null) {
+                // Strategy 4: Find methods invoked from ConversationsFragment
+                for (var m : methods) {
+                    var callers = m.getCallers();
+                    if (callers.stream().anyMatch(c -> c.getDeclaredClassName().equals(cFrag.getName()))) {
+                        method = m;
+                        break;
+                    }
+                }
+            }
+
+            if (method == null) {
+                // Strategy 5: Find methods that contain filter-related strings
+                method = methods.stream().filter(m -> {
+                    var strings = m.getUsingStrings();
+                    return strings.contains("unread") || strings.contains("groups") || strings.contains("all") || strings.contains("favorites");
+                }).findFirst().orElse(null);
+            }
+
+            if (method == null) {
+                // Strategy 6: If only one method invokes the constructor, use it
+                if (methods.size() == 1) {
+                    method = methods.get(0);
+                }
+            }
+
+            if (method == null) {
+                // Strategy 7: Search for any method that takes a Fragment-like parameter and invokes the constructor
+                method = methods.stream().filter(m -> m.getParamTypes().stream()
+                        .anyMatch(p -> p.getName().contains("Fragment") || p.getName().contains("Activity")))
+                        .findFirst().orElse(null);
+            }
+
+            if (method == null && !methods.isEmpty()) {
+                // Final Strategy: Pick the first method that takes at least one parameter
+                method = methods.stream().filter(m -> m.getParamCount() >= 1).findFirst().orElse(methods.get(0));
             }
 
             if (method == null)

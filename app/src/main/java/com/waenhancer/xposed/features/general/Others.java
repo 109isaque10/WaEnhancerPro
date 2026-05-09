@@ -90,6 +90,7 @@ public class Others extends Feature {
         var animationEmojis = prefs.getBoolean("animation_emojis", false);
         var disableProfileStatus = prefs.getBoolean("disable_profile_status", false);
         var disableExpiration = prefs.getBoolean("disable_expiration", false);
+        var disableAds = prefs.getBoolean("disable_ads", false);
 
         propsInteger.put(3877, oldStatus ? igstatus ? 2 : 0 : 2);
 
@@ -263,6 +264,10 @@ public class Others extends Feature {
             disableExpirationVersion(classLoader);
         }
 
+        if (disableAds) {
+            disableAds();
+        }
+
         if (!filterSeen) {
             disableHomeFilters();
         }
@@ -293,6 +298,11 @@ public class Others extends Feature {
                 });
             }
         });
+    }
+
+    private void disableAds() {
+        propsBoolean.put(22904, true);
+        propsBoolean.put(14306, false);
     }
 
 
