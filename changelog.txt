@@ -2,9 +2,10 @@
 - Tasker Automation Integration [Experimental] - Send & Receive WhatsApp messages through intents (Tasker, MacroDroid, Automate)
 
 
-[Restored]
-- Option to hide ads between status updates [Not Tested]
+[Improvements]
+- Option to manage recordings directly from WhatsApp Calls Tab Menu
 
 [Fixes]
-- Fixed crashes HideReciept, HideSeen, FilterGroup
-- Fixed Multiple Restart Dialogs Bug 
+- Fixed Status Download/Share in WA/WB v2.26.18
+- Fixed empty toast for Contact Online
+- Fixed Custom Privacy Per Contact 
