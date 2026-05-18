@@ -1,6 +1,5 @@
 [Improvements]
-- Improved Group Admin Icon UI (Better experience for saved/unsaved admin contacts)
+
 
 [Fixes]
-- Fixed WhatsApp Start Crash
-- Fixed View Once crash when download enabled
+- Fixed Revoked message indicator not showing

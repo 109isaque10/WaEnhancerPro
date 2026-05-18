@@ -825,8 +825,8 @@ public class FeatureLoader {
         }
         executorService.shutdown();
         try {
-            if (!executorService.awaitTermination(5, TimeUnit.SECONDS)) {
-                XposedBridge.log("WAE: Features failed to load within 5 seconds");
+            if (!executorService.awaitTermination(15, TimeUnit.SECONDS)) {
+                XposedBridge.log("WAE: Features failed to load within 15 seconds");
             }
         } catch (InterruptedException e) {
             XposedBridge.log(e);
