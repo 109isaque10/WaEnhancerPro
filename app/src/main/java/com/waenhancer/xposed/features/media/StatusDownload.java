@@ -60,7 +60,16 @@ public class StatusDownload extends Feature {
                 var fMessage = fMessageList.get(currentIndex);
                 if (fMessage.getKey().isFromMe) return null;
                 if (!fMessage.isMediaFile()) return null;
-                return menu.add(0, R.string.download, 0, com.waenhancer.xposed.core.FeatureLoader.getModuleString(R.string.download, "Download"));
+                
+                MenuItem item = menu.add(0, R.string.download, 0, com.waenhancer.xposed.core.FeatureLoader.getModuleString(R.string.download, "Download"));
+                File file = fMessage.getMediaFile();
+                if (file == null) {
+                    file = getMediaFile(activeStatusObj);
+                }
+                if (file == null || !file.exists()) {
+                    item.setEnabled(false);
+                }
+                return item;
             }
 
             @Override
@@ -82,7 +91,16 @@ public class StatusDownload extends Feature {
                 var fMessage = fMessageList.get(currentIndex);
                 if (fMessage.getKey().isFromMe) return null;
                 if (menu.findItem(R.string.share_as_status) != null) return null;
-                return menu.add(0, R.string.share_as_status, 0, com.waenhancer.xposed.core.FeatureLoader.getModuleString(R.string.share_as_status, "Share as status"));
+                
+                MenuItem item = menu.add(0, R.string.share_as_status, 0, com.waenhancer.xposed.core.FeatureLoader.getModuleString(R.string.share_as_status, "Share as status"));
+                File file = fMessage.getMediaFile();
+                if (file == null) {
+                    file = getMediaFile(activeStatusObj);
+                }
+                if (file == null || !file.exists()) {
+                    item.setEnabled(false);
+                }
+                return item;
             }
 
             @Override
@@ -292,33 +310,62 @@ public class StatusDownload extends Feature {
         return null;
     }
 
+    private static Object findDownloadStatusObject(Object obj, java.util.Set<Object> visited, int depth) {
+        if (obj == null || depth > 4) return null;
+        if (!visited.add(obj)) return null;
+
+        Class<?> clazz = obj.getClass();
+        if (!clazz.getName().startsWith("java.") && !clazz.getName().startsWith("android.")) {
+            int floatFieldsCount = 0;
+            java.lang.reflect.Field floatField = null;
+            for (java.lang.reflect.Field f : clazz.getDeclaredFields()) {
+                if (f.getType() == float.class) {
+                    floatFieldsCount++;
+                    floatField = f;
+                }
+            }
+            
+            int fileMethodsCount = 0;
+            java.lang.reflect.Method fileMethod = null;
+            for (java.lang.reflect.Method m : clazz.getDeclaredMethods()) {
+                if (m.getReturnType() == java.io.File.class && m.getParameterCount() == 0) {
+                    fileMethodsCount++;
+                    fileMethod = m;
+                }
+            }
+            
+            if (floatFieldsCount == 1 && fileMethodsCount == 1) {
+                return obj;
+            }
+        }
+
+        Class<?> current = clazz;
+        while (current != null && current != Object.class && !current.getName().startsWith("java.") && !current.getName().startsWith("android.")) {
+            for (java.lang.reflect.Field field : current.getDeclaredFields()) {
+                if (field.getType().isPrimitive() || field.getType().getName().startsWith("java.") || field.getType().getName().startsWith("android.")) {
+                    continue;
+                }
+                try {
+                    field.setAccessible(true);
+                    Object val = field.get(obj);
+                    Object found = findDownloadStatusObject(val, visited, depth + 1);
+                    if (found != null) return found;
+                } catch (Throwable ignored) {}
+            }
+            current = current.getSuperclass();
+        }
+        return null;
+    }
+
     public static File getMediaFile(Object statusObj) {
         if (statusObj == null) return null;
         try {
-            java.lang.reflect.Field a01Field = de.robv.android.xposed.XposedHelpers.findField(statusObj.getClass(), "A01");
-            Object statusItem = a01Field.get(statusObj);
-            if (statusItem == null) return null;
-            
-            Class<?> current = statusItem.getClass();
-            Object itemObj = null;
-            while (current != null && current != Object.class) {
-                for (java.lang.reflect.Field f : current.getDeclaredFields()) {
-                    if (f.getType().getName().equals("X.3bv")) {
-                        f.setAccessible(true);
-                        itemObj = f.get(statusItem);
-                        break;
-                    }
-                }
-                if (itemObj != null) break;
-                current = current.getSuperclass();
-            }
-            
-            if (itemObj == null) return null;
-            
-            for (java.lang.reflect.Method m : itemObj.getClass().getDeclaredMethods()) {
-                if (m.getReturnType() == File.class && m.getParameterCount() == 0) {
+            Object downloadStatusObj = findDownloadStatusObject(statusObj, new java.util.HashSet<>(), 0);
+            if (downloadStatusObj == null) return null;
+            for (java.lang.reflect.Method m : downloadStatusObj.getClass().getDeclaredMethods()) {
+                if (m.getReturnType() == java.io.File.class && m.getParameterCount() == 0) {
                     m.setAccessible(true);
-                    return (File) m.invoke(itemObj);
+                    return (File) m.invoke(downloadStatusObj);
                 }
             }
         } catch (Exception e) {
@@ -330,30 +377,12 @@ public class StatusDownload extends Feature {
     public static float getDownloadProgress(Object statusObj) {
         if (statusObj == null) return 0.0f;
         try {
-            java.lang.reflect.Field a01Field = de.robv.android.xposed.XposedHelpers.findField(statusObj.getClass(), "A01");
-            Object statusItem = a01Field.get(statusObj);
-            if (statusItem == null) return 0.0f;
-            
-            Class<?> current = statusItem.getClass();
-            Object itemObj = null;
-            while (current != null && current != Object.class) {
-                for (java.lang.reflect.Field f : current.getDeclaredFields()) {
-                    if (f.getType().getName().equals("X.3bv")) {
-                        f.setAccessible(true);
-                        itemObj = f.get(statusItem);
-                        break;
-                    }
-                }
-                if (itemObj != null) break;
-                current = current.getSuperclass();
-            }
-            
-            if (itemObj == null) return 0.0f;
-            
-            for (java.lang.reflect.Field f : itemObj.getClass().getDeclaredFields()) {
+            Object downloadStatusObj = findDownloadStatusObject(statusObj, new java.util.HashSet<>(), 0);
+            if (downloadStatusObj == null) return 0.0f;
+            for (java.lang.reflect.Field f : downloadStatusObj.getClass().getDeclaredFields()) {
                 if (f.getType() == float.class) {
                     f.setAccessible(true);
-                    return f.getFloat(itemObj);
+                    return f.getFloat(downloadStatusObj);
                 }
             }
         } catch (Exception e) {
@@ -377,32 +406,26 @@ public class StatusDownload extends Feature {
                     if (menuButton != null && menuButton.getParent() instanceof android.view.ViewGroup) {
                         android.view.ViewGroup parent = (android.view.ViewGroup) menuButton.getParent();
                         
-                        android.widget.ProgressBar progressBar = parent.findViewById(0x7EAD0099);
-                        if (progressBar == null) {
-                            progressBar = new android.widget.ProgressBar(activity, null, android.R.attr.progressBarStyleSmall);
-                            progressBar.setId(0x7EAD0099);
-                            progressBar.setIndeterminate(false);
-                            progressBar.setMax(100);
-                            progressBar.setProgress(0);
-                            
-                            // Style/Tint
-                            progressBar.getIndeterminateDrawable().setColorFilter(0xFF25D366, android.graphics.PorterDuff.Mode.SRC_IN);
-                            if (progressBar.getProgressDrawable() != null) {
-                                progressBar.getProgressDrawable().setColorFilter(0xFF25D366, android.graphics.PorterDuff.Mode.SRC_IN);
-                            }
+                        android.view.View progressBarView = parent.findViewById(0x7EAD0099);
+                        if (progressBarView == null) {
+                            CircularProgressView circularProgress = new CircularProgressView(activity);
+                            circularProgress.setId(0x7EAD0099);
                             
                             android.widget.LinearLayout.LayoutParams params = new android.widget.LinearLayout.LayoutParams(
                                 com.waenhancer.xposed.utils.Utils.dipToPixels(24.0f),
                                 com.waenhancer.xposed.utils.Utils.dipToPixels(24.0f)
                             );
-                            params.rightMargin = com.waenhancer.xposed.utils.Utils.dipToPixels(8.0f);
-                            params.leftMargin = com.waenhancer.xposed.utils.Utils.dipToPixels(8.0f);
-                            progressBar.setLayoutParams(params);
+                            params.gravity = android.view.Gravity.CENTER_VERTICAL;
+                            params.rightMargin = com.waenhancer.xposed.utils.Utils.dipToPixels(12.0f);
+                            params.leftMargin = com.waenhancer.xposed.utils.Utils.dipToPixels(12.0f);
+                            circularProgress.setLayoutParams(params);
                             
                             int idx = parent.indexOfChild(menuButton);
-                            parent.addView(progressBar, idx);
+                            parent.addView(circularProgress, idx);
+                            progressBarView = circularProgress;
                         }
                         
+                        CircularProgressView progressBar = (CircularProgressView) progressBarView;
                         Object status = activeStatusObj;
                         File file = getMediaFile(status);
                         
@@ -415,8 +438,7 @@ public class StatusDownload extends Feature {
                             }
                             if (progress > 0.0f && progress < 100.0f) {
                                 progressBar.setVisibility(android.view.View.VISIBLE);
-                                progressBar.setIndeterminate(false);
-                                progressBar.setProgress((int) progress);
+                                progressBar.setProgress(progress);
                             } else {
                                 progressBar.setVisibility(android.view.View.VISIBLE);
                                 progressBar.setIndeterminate(true);
@@ -431,6 +453,59 @@ public class StatusDownload extends Feature {
             }
         };
         handler.postDelayed(runnable, 100);
+    }
+
+    public static class CircularProgressView extends android.view.View {
+        private final android.graphics.Paint paint = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
+        private final android.graphics.RectF rectF = new android.graphics.RectF();
+        private float progress = 0f;
+        private boolean indeterminate = true;
+        private float spinAngle = 0f;
+
+        public CircularProgressView(android.content.Context context) {
+            super(context);
+            paint.setStyle(android.graphics.Paint.Style.STROKE);
+            paint.setStrokeCap(android.graphics.Paint.Cap.ROUND);
+        }
+
+        public void setProgress(float progress) {
+            this.progress = progress;
+            this.indeterminate = false;
+            invalidate();
+        }
+
+        public void setIndeterminate(boolean indeterminate) {
+            if (this.indeterminate != indeterminate) {
+                this.indeterminate = indeterminate;
+                invalidate();
+            }
+        }
+
+        @Override
+        protected void onDraw(android.graphics.Canvas canvas) {
+            super.onDraw(canvas);
+            float size = Math.min(getWidth(), getHeight());
+            float strokeWidth = com.waenhancer.xposed.utils.Utils.dipToPixels(3.5f); // Premium bold weight!
+            paint.setStrokeWidth(strokeWidth);
+            
+            float padding = strokeWidth / 2.0f;
+            rectF.set(padding, padding, size - padding, size - padding);
+
+            // Draw track (subtle translucent white background)
+            paint.setColor(0x2BFFFFFF); // ~17% opacity white
+            canvas.drawOval(rectF, paint);
+
+            // Draw progress (solid white)
+            paint.setColor(0xFFFFFFFF);
+            if (indeterminate) {
+                canvas.drawArc(rectF, spinAngle, 90f, false, paint);
+                spinAngle = (spinAngle + 5f) % 360f;
+                postInvalidateOnAnimation();
+            } else {
+                float sweepAngle = (progress / 100f) * 360f;
+                canvas.drawArc(rectF, -90f, sweepAngle, false, paint);
+            }
+        }
     }
 
 }

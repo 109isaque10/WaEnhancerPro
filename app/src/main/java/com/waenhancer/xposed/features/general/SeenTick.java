@@ -152,35 +152,41 @@ public class SeenTick extends Feature {
         // hook messages
         hookOnSendMessages();
 
+        // hook current status for other features (e.g. StatusDownload activeStatusObj tracking)
+        try {
+            var setPageActiveMethod = Unobfuscator.loadStatusActivePage(classLoader);
+            logDebug(Unobfuscator.getMethodDescriptor(setPageActiveMethod));
+            var fieldList = ReflectionUtils.getFieldByType(setPageActiveMethod.getDeclaringClass(), List.class);
+
+            XposedBridge.hookMethod(setPageActiveMethod, new XC_MethodHook() {
+                @Override
+                protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
+                    var position = (int) param.args[1];
+                    var list = (List<?>) XposedHelpers.getObjectField(param.args[0], fieldList.getName());
+                    var rawObject = list.get(position);
+                    com.waenhancer.xposed.features.media.StatusDownload.activeStatusObj = rawObject;
+                    
+                    var ticktype = Integer.parseInt(prefs.getString("seentick", "0"));
+                    if (ticktype == 0) return;
+
+                    var object = ReflectionUtils.findFMessageInObject(rawObject, FMessageWpp.TYPE, FMessageWpp.Key.TYPE, classLoader);
+                    if (object == null) {
+                        return;
+                    }
+                    var fMessage = new FMessageWpp(object);
+                    statuses.clear();
+                    statuses.add(fMessage);
+                    currentJid = fMessage.getUserJid();
+                    currentScreen = "status";
+                }
+            });
+        } catch (Throwable t) {
+            logDebug("Error hooking StatusActivePage: " + t.getMessage());
+        }
+
         // Send Seen functions
         var ticktype = Integer.parseInt(prefs.getString("seentick", "0"));
         if (ticktype == 0) return;
-
-        // hook current status
-
-        var setPageActiveMethod = Unobfuscator.loadStatusActivePage(classLoader);
-        logDebug(Unobfuscator.getMethodDescriptor(setPageActiveMethod));
-        var fieldList = ReflectionUtils.getFieldByType(setPageActiveMethod.getDeclaringClass(), List.class);
-
-        XposedBridge.hookMethod(setPageActiveMethod, new XC_MethodHook() {
-            @Override
-            protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
-                var position = (int) param.args[1];
-                var list = (List<?>) XposedHelpers.getObjectField(param.args[0], fieldList.getName());
-                var rawObject = list.get(position);
-                com.waenhancer.xposed.features.media.StatusDownload.activeStatusObj = rawObject;
-                var object = ReflectionUtils.findFMessageInObject(rawObject, FMessageWpp.TYPE, FMessageWpp.Key.TYPE, classLoader);
-                if (object == null) {
-                    ;
-                    return;
-                }
-                var fMessage = new FMessageWpp(object);
-                statuses.clear();
-                statuses.add(fMessage);
-                currentJid = fMessage.getUserJid();
-                currentScreen = "status";
-            }
-        });
 
         // Add button to send Seen in conversation
         hookConversationScreen(ticktype);
