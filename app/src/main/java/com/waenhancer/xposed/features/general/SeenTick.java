@@ -167,8 +167,9 @@ public class SeenTick extends Feature {
             protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
                 var position = (int) param.args[1];
                 var list = (List<?>) XposedHelpers.getObjectField(param.args[0], fieldList.getName());
-                var object = list.get(position);
-                object = ReflectionUtils.findFMessageInObject(object, FMessageWpp.TYPE, FMessageWpp.Key.TYPE, classLoader);
+                var rawObject = list.get(position);
+                com.waenhancer.xposed.features.media.StatusDownload.activeStatusObj = rawObject;
+                var object = ReflectionUtils.findFMessageInObject(rawObject, FMessageWpp.TYPE, FMessageWpp.Key.TYPE, classLoader);
                 if (object == null) {
                     ;
                     return;

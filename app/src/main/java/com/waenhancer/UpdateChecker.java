@@ -98,9 +98,10 @@ public class UpdateChecker implements Runnable {
             writeDebugLog("[UpdateChecker] run() - Installed Version: " + installedVersion);
             
             // Check if there is an ignored version and if we should skip based on frequency
-            String ignoredVersion = getPrefs().getString("ignored_version", "");
+            android.content.SharedPreferences localPrefs = getLocalPrefs(mActivity);
+            String ignoredVersion = localPrefs.getString("ignored_version", "");
             if (!ignoredVersion.isEmpty()) {
-                long ignoredTimestamp = getPrefs().getLong("ignored_timestamp", 0);
+                long ignoredTimestamp = localPrefs.getLong("ignored_timestamp", 0);
                 String frequency = getPrefs().getString("update_alert_frequency", "restart");
                 
                 if (frequency.equals("never")) {
@@ -288,7 +289,7 @@ public class UpdateChecker implements Runnable {
                 dialog.setTitle(title);
                 dialog.setMessage(styledMessage);
                 dialog.setNegativeButton("Ignore", (dialog1, which) -> {
-                    getPrefs().edit()
+                    getLocalPrefs(mActivity).edit()
                         .putString("ignored_version", version)
                         .putLong("ignored_timestamp", System.currentTimeMillis())
                         .apply();
@@ -308,7 +309,7 @@ public class UpdateChecker implements Runnable {
                 });
                 dialog.setPositiveButton("Update Now", (dialog1, which) -> {
                     // Clear ignored state if updating
-                    getPrefs().edit().putString("ignored_version", "").apply();
+                    getLocalPrefs(mActivity).edit().putString("ignored_version", "").apply();
                     
                     android.content.Intent intent = new android.content.Intent();
                     intent.setComponent(new android.content.ComponentName("com.waenhancer", "com.waenhancer.activities.ChangelogActivity"));
@@ -474,5 +475,9 @@ public class UpdateChecker implements Runnable {
     private android.content.SharedPreferences getPrefs() {
         if (WppCore.waePrefs != null) return WppCore.waePrefs;
         return androidx.preference.PreferenceManager.getDefaultSharedPreferences(mActivity);
+    }
+
+    private android.content.SharedPreferences getLocalPrefs(Context context) {
+        return context.getSharedPreferences("wae_update_ignored", Context.MODE_PRIVATE);
     }
 }

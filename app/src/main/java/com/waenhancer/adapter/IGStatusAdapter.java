@@ -171,12 +171,31 @@ public class IGStatusAdapter extends ArrayAdapter {
             if (obj == null || depth < 0) return null;
             Class<?> clazz = obj.getClass();
             String name = clazz.getName();
-            if (name.endsWith(".Jid") || name.endsWith(".UserJid") || name.endsWith(".PhoneUserJid")) {
+            
+            if (name.endsWith(".Jid") || name.endsWith(".UserJid") || name.endsWith(".PhoneUserJid") || name.endsWith(".DeviceJid")) {
                 return obj;
             }
-            if (name.startsWith("java.") || name.startsWith("android.") || name.startsWith("androidx.")) {
+            if (com.waenhancer.xposed.core.components.FMessageWpp.UserJid.TYPE_JID != null && com.waenhancer.xposed.core.components.FMessageWpp.UserJid.TYPE_JID.isInstance(obj)) {
+                return obj;
+            }
+            if (com.waenhancer.xposed.core.components.FMessageWpp.UserJid.TYPE_USERJID != null && com.waenhancer.xposed.core.components.FMessageWpp.UserJid.TYPE_USERJID.isInstance(obj)) {
+                return obj;
+            }
+            if (com.waenhancer.xposed.core.components.FMessageWpp.UserJid.TYPE_PHONEUSERJID != null && com.waenhancer.xposed.core.components.FMessageWpp.UserJid.TYPE_PHONEUSERJID.isInstance(obj)) {
+                return obj;
+            }
+            
+            if (name.startsWith("java.") || name.startsWith("android.") || name.startsWith("androidx.") || name.startsWith("kotlin.")) {
                 return null;
             }
+            
+            if (obj instanceof String) {
+                String str = (String) obj;
+                if (str.contains("@s.whatsapp.net") || str.contains("@broadcast") || str.contains("@g.us") || str.contains("@newsletter") || str.contains("@status")) {
+                    return str;
+                }
+            }
+            
             for (java.lang.reflect.Field f : clazz.getDeclaredFields()) {
                 try {
                     f.setAccessible(true);
@@ -239,11 +258,21 @@ public class IGStatusAdapter extends ArrayAdapter {
             }
             myStatus = false;
             try {
-                Object jidObj = findJidObject(item, 3);
+                Object jidObj = findJidObject(item, 4);
                 if (jidObj == null) {
-                    throw new RuntimeException("WAE: Jid object not found in status item");
+                    XposedBridge.log("WAEX-ERR: WAE Jid object not found in status item class: " + item.getClass().getName());
+                    for (java.lang.reflect.Field f : item.getClass().getDeclaredFields()) {
+                        try {
+                            f.setAccessible(true);
+                            XposedBridge.log("  Field: " + f.getName() + " (" + f.getType().getName() + ") = " + f.get(item));
+                        } catch (Throwable ignored) {}
+                    }
+                    this.userJid = new FMessageWpp.UserJid("status@broadcast");
+                } else if (jidObj instanceof String) {
+                    this.userJid = new FMessageWpp.UserJid((String) jidObj);
+                } else {
+                    this.userJid = new FMessageWpp.UserJid(jidObj);
                 }
-                this.userJid = new FMessageWpp.UserJid(jidObj);
                 
                 Object statusInfo = null;
                 for (java.lang.reflect.Field f : item.getClass().getDeclaredFields()) {

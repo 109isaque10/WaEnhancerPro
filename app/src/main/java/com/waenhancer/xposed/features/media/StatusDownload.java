@@ -31,11 +31,25 @@ import android.content.SharedPreferences;
 
 public class StatusDownload extends Feature {
 
+    public static volatile Object activeStatusObj = null;
+
     public StatusDownload(ClassLoader loader, SharedPreferences preferences) {
         super(loader, preferences);
     }
 
     public void doHook() throws Exception {
+        try {
+            Class<?> activityClass = de.robv.android.xposed.XposedHelpers.findClass("com.whatsapp.status.playback.StatusPlaybackActivity", classLoader);
+            de.robv.android.xposed.XposedHelpers.findAndHookMethod(activityClass, "onCreate", android.os.Bundle.class, new de.robv.android.xposed.XC_MethodHook() {
+                @Override
+                protected void afterHookedMethod(MethodHookParam param) throws Throwable {
+                    android.app.Activity activity = (android.app.Activity) param.thisObject;
+                    setupProgressPoller(activity);
+                }
+            });
+        } catch (Throwable t) {
+            XposedBridge.log("[WAEX] Error hooking StatusPlaybackActivity onCreate: " + t.getMessage());
+        }
         var downloadStatus = new MenuStatusListener.OnMenuItemStatusListener() {
 
             @Override
@@ -248,6 +262,175 @@ public class StatusDownload extends Feature {
         }
 
         return null;
+    }
+
+    private static android.view.View findMenuButton(android.view.View root) {
+        if (root == null) return null;
+        try {
+            if (root.getId() != android.view.View.NO_ID) {
+                String idName = root.getResources().getResourceEntryName(root.getId());
+                if (idName != null && (idName.contains("menu") || idName.contains("more") || idName.contains("option"))) {
+                    return root;
+                }
+            }
+            CharSequence desc = root.getContentDescription();
+            if (desc != null) {
+                String d = desc.toString().toLowerCase();
+                if (d.contains("more options") || d.contains("menu") || d.contains("options")) {
+                    return root;
+                }
+            }
+        } catch (Exception ignored) {}
+        
+        if (root instanceof android.view.ViewGroup) {
+            android.view.ViewGroup group = (android.view.ViewGroup) root;
+            for (int i = 0; i < group.getChildCount(); i++) {
+                android.view.View found = findMenuButton(group.getChildAt(i));
+                if (found != null) return found;
+            }
+        }
+        return null;
+    }
+
+    public static File getMediaFile(Object statusObj) {
+        if (statusObj == null) return null;
+        try {
+            java.lang.reflect.Field a01Field = de.robv.android.xposed.XposedHelpers.findField(statusObj.getClass(), "A01");
+            Object statusItem = a01Field.get(statusObj);
+            if (statusItem == null) return null;
+            
+            Class<?> current = statusItem.getClass();
+            Object itemObj = null;
+            while (current != null && current != Object.class) {
+                for (java.lang.reflect.Field f : current.getDeclaredFields()) {
+                    if (f.getType().getName().equals("X.3bv")) {
+                        f.setAccessible(true);
+                        itemObj = f.get(statusItem);
+                        break;
+                    }
+                }
+                if (itemObj != null) break;
+                current = current.getSuperclass();
+            }
+            
+            if (itemObj == null) return null;
+            
+            for (java.lang.reflect.Method m : itemObj.getClass().getDeclaredMethods()) {
+                if (m.getReturnType() == File.class && m.getParameterCount() == 0) {
+                    m.setAccessible(true);
+                    return (File) m.invoke(itemObj);
+                }
+            }
+        } catch (Exception e) {
+            XposedBridge.log("[WAEX] Error getMediaFile: " + e.getMessage());
+        }
+        return null;
+    }
+
+    public static float getDownloadProgress(Object statusObj) {
+        if (statusObj == null) return 0.0f;
+        try {
+            java.lang.reflect.Field a01Field = de.robv.android.xposed.XposedHelpers.findField(statusObj.getClass(), "A01");
+            Object statusItem = a01Field.get(statusObj);
+            if (statusItem == null) return 0.0f;
+            
+            Class<?> current = statusItem.getClass();
+            Object itemObj = null;
+            while (current != null && current != Object.class) {
+                for (java.lang.reflect.Field f : current.getDeclaredFields()) {
+                    if (f.getType().getName().equals("X.3bv")) {
+                        f.setAccessible(true);
+                        itemObj = f.get(statusItem);
+                        break;
+                    }
+                }
+                if (itemObj != null) break;
+                current = current.getSuperclass();
+            }
+            
+            if (itemObj == null) return 0.0f;
+            
+            for (java.lang.reflect.Field f : itemObj.getClass().getDeclaredFields()) {
+                if (f.getType() == float.class) {
+                    f.setAccessible(true);
+                    return f.getFloat(itemObj);
+                }
+            }
+        } catch (Exception e) {
+            // ignore
+        }
+        return 0.0f;
+    }
+
+    public static void setupProgressPoller(final android.app.Activity activity) {
+        final android.os.Handler handler = new android.os.Handler(android.os.Looper.getMainLooper());
+        final Runnable runnable = new Runnable() {
+            @Override
+            public void run() {
+                if (activity.isFinishing() || activity.isDestroyed()) {
+                    return;
+                }
+                
+                try {
+                    android.view.View decorView = activity.getWindow().getDecorView();
+                    android.view.View menuButton = findMenuButton(decorView);
+                    if (menuButton != null && menuButton.getParent() instanceof android.view.ViewGroup) {
+                        android.view.ViewGroup parent = (android.view.ViewGroup) menuButton.getParent();
+                        
+                        android.widget.ProgressBar progressBar = parent.findViewById(0x7EAD0099);
+                        if (progressBar == null) {
+                            progressBar = new android.widget.ProgressBar(activity, null, android.R.attr.progressBarStyleSmall);
+                            progressBar.setId(0x7EAD0099);
+                            progressBar.setIndeterminate(false);
+                            progressBar.setMax(100);
+                            progressBar.setProgress(0);
+                            
+                            // Style/Tint
+                            progressBar.getIndeterminateDrawable().setColorFilter(0xFF25D366, android.graphics.PorterDuff.Mode.SRC_IN);
+                            if (progressBar.getProgressDrawable() != null) {
+                                progressBar.getProgressDrawable().setColorFilter(0xFF25D366, android.graphics.PorterDuff.Mode.SRC_IN);
+                            }
+                            
+                            android.widget.LinearLayout.LayoutParams params = new android.widget.LinearLayout.LayoutParams(
+                                com.waenhancer.xposed.utils.Utils.dipToPixels(24.0f),
+                                com.waenhancer.xposed.utils.Utils.dipToPixels(24.0f)
+                            );
+                            params.rightMargin = com.waenhancer.xposed.utils.Utils.dipToPixels(8.0f);
+                            params.leftMargin = com.waenhancer.xposed.utils.Utils.dipToPixels(8.0f);
+                            progressBar.setLayoutParams(params);
+                            
+                            int idx = parent.indexOfChild(menuButton);
+                            parent.addView(progressBar, idx);
+                        }
+                        
+                        Object status = activeStatusObj;
+                        File file = getMediaFile(status);
+                        
+                        if (file != null && file.exists()) {
+                            progressBar.setVisibility(android.view.View.GONE);
+                        } else {
+                            float progress = getDownloadProgress(status);
+                            if (progress > 0.0f && progress <= 1.0f) {
+                                progress = progress * 100.0f;
+                            }
+                            if (progress > 0.0f && progress < 100.0f) {
+                                progressBar.setVisibility(android.view.View.VISIBLE);
+                                progressBar.setIndeterminate(false);
+                                progressBar.setProgress((int) progress);
+                            } else {
+                                progressBar.setVisibility(android.view.View.VISIBLE);
+                                progressBar.setIndeterminate(true);
+                            }
+                        }
+                    }
+                } catch (Throwable t) {
+                    // ignore
+                }
+                
+                handler.postDelayed(this, 100);
+            }
+        };
+        handler.postDelayed(runnable, 100);
     }
 
 }
