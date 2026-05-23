@@ -240,4 +240,52 @@ public class MessageStore {
     public SQLiteDatabase getDatabase() {
         return sqLiteDatabase;
     }
+
+    public static class MessageInfo {
+        public final long rowId;
+        public final long sortId;
+        public final long chatRowId;
+
+        public MessageInfo(long rowId, long sortId, long chatRowId) {
+            this.rowId = rowId;
+            this.sortId = sortId;
+            this.chatRowId = chatRowId;
+        }
+    }
+
+    public synchronized MessageInfo getFirstMessageInfoByChatRawJid(String rawJid) {
+        SQLiteDatabase db = getDatabase();
+        if (db == null || android.text.TextUtils.isEmpty(rawJid)) {
+            return null;
+        }
+
+        String sql =
+            "WITH resolved(jid_row_id) AS (\n" +
+            "    SELECT _id FROM jid WHERE raw_string=?\n" +
+            "    UNION\n" +
+            "    SELECT jm.jid_row_id FROM jid_map jm\n" +
+            "    INNER JOIN jid j ON j._id = jm.lid_row_id\n" +
+            "    WHERE j.raw_string=?\n" +
+            "    UNION\n" +
+            "    SELECT jm.lid_row_id FROM jid_map jm\n" +
+            "    INNER JOIN jid j ON j._id = jm.jid_row_id\n" +
+            "    WHERE j.raw_string=?\n" +
+            "), chat_target AS (\n" +
+            "    SELECT _id FROM chat WHERE jid_row_id IN (SELECT jid_row_id FROM resolved)\n" +
+            ")\n" +
+            "SELECT m._id, m.sort_id, m.chat_row_id\n" +
+            "FROM message m\n" +
+            "INNER JOIN chat_target c ON c._id = m.chat_row_id\n" +
+            "ORDER BY m.sort_id ASC, m._id ASC\n" +
+            "LIMIT 1";
+
+        try (Cursor cursor = db.rawQuery(sql, new String[]{rawJid, rawJid, rawJid})) {
+            if (cursor.moveToFirst()) {
+                return new MessageInfo(cursor.getLong(0), cursor.getLong(1), cursor.getLong(2));
+            }
+        } catch (Exception e) {
+            XposedBridge.log(e);
+        }
+        return null;
+    }
 }

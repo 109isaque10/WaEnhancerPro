@@ -10,7 +10,11 @@ import android.widget.ListView;
 import androidx.annotation.NonNull;
 
 import com.waenhancer.xposed.core.Feature;
+import com.waenhancer.xposed.core.WppCore;
+import com.waenhancer.xposed.core.db.MessageStore;
 import com.waenhancer.xposed.utils.Utils;
+import android.content.Intent;
+import android.os.SystemClock;
 
 import de.robv.android.xposed.XC_MethodHook;
 import android.content.SharedPreferences;
@@ -43,7 +47,7 @@ public class ChatScrollButtons extends Feature {
                     MenuItem goToFirstItem = menu.add(0, 1001, 0, "Go to First Message");
                     goToFirstItem.setShowAsAction(MenuItem.SHOW_AS_ACTION_NEVER);
                     goToFirstItem.setOnMenuItemClickListener(item -> {
-                        scrollToTop(activity);
+                        jumpToFirstMessage(activity);
                         return true;
                     });
                 }
@@ -54,47 +58,38 @@ public class ChatScrollButtons extends Feature {
         }
     }
 
-    private void scrollToTop(Activity activity) {
+    private void jumpToFirstMessage(@NonNull Activity activity) {
+        var userJid = WppCore.getCurrentUserJid();
+        if (userJid == null || userJid.isNull()) {
+            return;
+        }
+
+        var rawJid = userJid.getPhoneRawString();
+        if (rawJid == null || rawJid.isEmpty()) {
+            rawJid = userJid.getUserRawString();
+        }
+        if (rawJid == null || rawJid.isEmpty()) {
+            return;
+        }
+
+        var firstMessageInfo = MessageStore.getInstance().getFirstMessageInfoByChatRawJid(rawJid);
+        if (firstMessageInfo == null) {
+            return;
+        }
+
         try {
-            View rootView = activity.getWindow().getDecorView();
-            
-            // Find the conversation root layout
-            ViewGroup conversationRootLayout = rootView.findViewById(Utils.getID("conversation_root_layout", "id"));
-            if (conversationRootLayout == null) {
-                ;
-                return;
-            }
-
-            // Find the message list view (ListView with android.R.id.list)
-            ListView messagesList = findMessagesList(conversationRootLayout);
-            if (messagesList == null) {
-                ;
-                return;
-            }
-
-            if (messagesList.getCount() > 0) {
-                messagesList.smoothScrollToPosition(0);
-            }
+            Intent intent = new Intent(activity, activity.getClass());
+            intent.putExtra("jid", rawJid);
+            intent.putExtra("sort_id", firstMessageInfo.sortId);
+            intent.putExtra("row_id", firstMessageInfo.rowId);
+            intent.putExtra("start_t", SystemClock.uptimeMillis());
+            intent.putExtra("mat_entry_point", 64);
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NO_ANIMATION);
+            activity.startActivity(intent);
+            activity.overridePendingTransition(0, 0);
         } catch (Exception e) {
-            XposedBridge.log("ChatScrollButtons scroll error: " + e.getMessage());
-            e.printStackTrace();
+            XposedBridge.log(e);
         }
-    }
-
-    private ListView findMessagesList(ViewGroup parent) {
-        for (int i = 0; i < parent.getChildCount(); i++) {
-            View child = parent.getChildAt(i);
-            if (child instanceof ListView) {
-                ListView listView = (ListView) child;
-                if (listView.getId() == android.R.id.list) {
-                    return listView;
-                }
-            } else if (child instanceof ViewGroup) {
-                ListView found = findMessagesList((ViewGroup) child);
-                if (found != null) return found;
-            }
-        }
-        return null;
     }
 
     @NonNull
