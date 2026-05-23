@@ -6,6 +6,7 @@
 - Enhanced overall module stability by utilizing lightweight native integration
 - Improved Module Entry tile in Settings Activity for all Languages
 - Improved WAEX Menu items locales according to WhatsApp Language
+- Improved Status Loading UI
 
 [Fixes]
 - Fixed Deleted Message Indicator not showing

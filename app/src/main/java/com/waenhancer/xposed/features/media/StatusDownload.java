@@ -62,13 +62,6 @@ public class StatusDownload extends Feature {
                 if (!fMessage.isMediaFile()) return null;
                 
                 MenuItem item = menu.add(0, R.string.download, 0, com.waenhancer.xposed.core.FeatureLoader.getModuleString(com.waenhancer.xposed.utils.Utils.getApplication(), R.string.download, "Download"));
-                File file = fMessage.getMediaFile();
-                if (file == null) {
-                    file = getMediaFile(activeStatusObj);
-                }
-                if (file == null || !file.exists()) {
-                    item.setEnabled(false);
-                }
                 return item;
             }
 
@@ -93,13 +86,6 @@ public class StatusDownload extends Feature {
                 if (menu.findItem(R.string.share_as_status) != null) return null;
                 
                 MenuItem item = menu.add(0, R.string.share_as_status, 0, com.waenhancer.xposed.core.FeatureLoader.getModuleString(com.waenhancer.xposed.utils.Utils.getApplication(), R.string.share_as_status, "Share as status"));
-                File file = fMessage.getMediaFile();
-                if (file == null) {
-                    file = getMediaFile(activeStatusObj);
-                }
-                if (file == null || !file.exists()) {
-                    item.setEnabled(false);
-                }
                 return item;
             }
 
@@ -419,6 +405,13 @@ public class StatusDownload extends Feature {
                             params.rightMargin = com.waenhancer.xposed.utils.Utils.dipToPixels(12.0f);
                             params.leftMargin = com.waenhancer.xposed.utils.Utils.dipToPixels(12.0f);
                             circularProgress.setLayoutParams(params);
+                            
+                            circularProgress.setOnClickListener(new android.view.View.OnClickListener() {
+                                @Override
+                                public void onClick(android.view.View v) {
+                                    com.waenhancer.xposed.utils.Utils.showToast("Status is loading in WhatsApp. Please wait...", android.widget.Toast.LENGTH_SHORT);
+                                }
+                            });
                             
                             int idx = parent.indexOfChild(menuButton);
                             parent.addView(circularProgress, idx);

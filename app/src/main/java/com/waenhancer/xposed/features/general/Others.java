@@ -415,22 +415,23 @@ public class Others extends Feature {
      * We hook onViewCreated (initial inflation) and onResume (re-show safety net),
      * both scoped only to ConversationsFragment — zero global hook overhead.
      */
+    private static java.lang.reflect.Method cachedGetCurrentItemMethod = null;
+    private static int cachedPagerId = -1;
+
     private static boolean isChatsTabActive(View view) {
         if (view == null) return false;
         try {
-            android.view.ViewParent parent = view.getParent();
-            View root = view;
-            while (parent instanceof View) {
-                root = (View) parent;
-                parent = root.getParent();
+            View root = view.getRootView();
+            if (cachedPagerId == -1) {
+                cachedPagerId = root.getResources().getIdentifier("pager", "id", root.getContext().getPackageName());
             }
-
-            int pagerId = root.getResources().getIdentifier("pager", "id", root.getContext().getPackageName());
-            if (pagerId > 0) {
-                View pager = root.findViewById(pagerId);
+            if (cachedPagerId > 0) {
+                View pager = root.findViewById(cachedPagerId);
                 if (pager != null) {
-                    java.lang.reflect.Method getCurrentItemMethod = pager.getClass().getMethod("getCurrentItem");
-                    Integer currentItem = (Integer) getCurrentItemMethod.invoke(pager);
+                    if (cachedGetCurrentItemMethod == null) {
+                        cachedGetCurrentItemMethod = pager.getClass().getMethod("getCurrentItem");
+                    }
+                    Integer currentItem = (Integer) cachedGetCurrentItemMethod.invoke(pager);
                     if (currentItem != null) {
                         return currentItem == 0;
                     }
@@ -451,8 +452,6 @@ public class Others extends Feature {
             hookedPageChangeListeners.add(className);
         }
 
-        XposedBridge.log("[WAE] Hooking page listener methods on class: " + className);
-        
         // Find all void(int) methods declared in the listener interface (obfuscated or not) and hook them
         for (java.lang.reflect.Method m : listenerInterface.getDeclaredMethods()) {
             if (m.getParameterTypes().length == 1 && m.getParameterTypes()[0] == int.class && m.getReturnType() == void.class) {
@@ -461,15 +460,11 @@ public class Others extends Feature {
                     XposedHelpers.findAndHookMethod(listenerClass, methodName, int.class, new XC_MethodHook() {
                         @Override
                         protected void afterHookedMethod(MethodHookParam param) throws Throwable {
-                            int arg = (int) param.args[0];
-                            XposedBridge.log("[WAE] Page listener method " + methodName + " called with arg: " + arg);
-                            
                             Activity current = WppCore.getCurrentActivity();
                             if (current != null) {
                                 View fab = current.findViewById(fabId);
                                 if (fab != null) {
                                     boolean isChats = isChatsTabActive(fab);
-                                    XposedBridge.log("[WAE] Page listener triggered update: isChatsActive = " + isChats);
                                     if (isChats) {
                                         fab.setVisibility(View.GONE);
                                     } else {
@@ -479,16 +474,13 @@ public class Others extends Feature {
                             }
                         }
                     });
-                    XposedBridge.log("[WAE] Successfully hooked listener method: " + methodName + " on class " + className);
                 } catch (Throwable t) {
-                    XposedBridge.log("[WAE] Failed to hook listener method " + methodName + " on class " + className + ": " + t.toString());
                 }
             }
         }
     }
 
     private static void setupViewPagerHooks(Class<?> vpClass, final int fabId) {
-        XposedBridge.log("[WAE] setupViewPagerHooks called for class: " + vpClass.getName());
         try {
             Class<?> vpSuper = null;
             Class<?> current = vpClass;
@@ -501,12 +493,9 @@ public class Others extends Feature {
             }
 
             if (vpSuper == null) {
-                XposedBridge.log("[WAE] ViewPager class not found in hierarchy of " + vpClass.getName());
                 return;
             }
 
-            XposedBridge.log("[WAE] Found ViewPager superclass: " + vpSuper.getName());
-            
             // Programmatically find the listener interface from setOnPageChangeListener signature
             Class<?> listenerInterface = null;
             for (java.lang.reflect.Method m : vpSuper.getDeclaredMethods()) {
@@ -526,11 +515,8 @@ public class Others extends Feature {
             }
 
             if (listenerInterface == null) {
-                XposedBridge.log("[WAE] Could not find setOnPageChangeListener method on ViewPager superclass!");
                 return;
             }
-
-            XposedBridge.log("[WAE] Dynamically resolved OnPageChangeListener interface class: " + listenerInterface.getName());
 
             final Class<?> finalInterface = listenerInterface;
 
@@ -548,9 +534,7 @@ public class Others extends Feature {
                                 }
                             }
                         });
-                        XposedBridge.log("[WAE] Dynamically hooked page listener registration method: " + mName + " on " + vpSuper.getName());
                     } catch (Throwable t) {
-                        XposedBridge.log("[WAE] Failed to hook method: " + mName + ": " + t.toString());
                     }
                 }
             }
@@ -569,30 +553,24 @@ public class Others extends Feature {
                                 }
                             }
                         });
-                        XposedBridge.log("[WAE] Dynamically hooked public page listener registration method: " + mName + " on " + vpSuper.getName());
                     } catch (Throwable t) {
                         // ignore if already hooked
                     }
                 }
             }
         } catch (Throwable t) {
-            XposedBridge.log("[WAE] Failed to hook ViewPager: " + t.toString());
         }
     }
 
     private void hideMetaAIFab() throws Exception {
-        XposedBridge.log("[WAE] hideMetaAIFab() called");
         final int fabId = Utils.getID("fab_second", "id");
-        XposedBridge.log("[WAE] hideMetaAIFab: fabId = " + fabId);
 
         if (fabId > 0) {
             // Hook ViewPager early to intercept its listeners as they are being set on startup
             try {
                 Class<?> vpClass = XposedHelpers.findClass("androidx.viewpager.widget.ViewPager", classLoader);
-                XposedBridge.log("[WAE] ViewPager class loaded early, setting up startup hooks");
                 setupViewPagerHooks(vpClass, fabId);
             } catch (Throwable t) {
-                XposedBridge.log("[WAE] Failed to hook ViewPager class early: " + t.getMessage());
             }
 
             // Dynamic interceptor to force GONE on any post-layout visibility updates by WhatsApp
@@ -602,33 +580,28 @@ public class Others extends Feature {
                     View view = (View) param.thisObject;
                     if (view.getId() == fabId) {
                         if (isChatsTabActive(view)) {
-                            XposedBridge.log("[WAE] Intercepted setVisibility for fab_second in Chats, forcing GONE!");
                             param.args[0] = View.GONE;
-                        } else {
-                            XposedBridge.log("[WAE] Intercepted setVisibility for fab_second outside Chats, allowing visibility: " + param.args[0]);
                         }
                     }
                 }
             };
 
-            // Hook setVisibility on View.class as a base hook
-            XposedHelpers.findAndHookMethod(View.class, "setVisibility", int.class, visibilityHook);
+            // Hook setVisibility on ImageView.class to narrow down hook scope significantly (since FAB is an ImageView)
+            XposedHelpers.findAndHookMethod(android.widget.ImageView.class, "setVisibility", int.class, visibilityHook);
 
             // Hook 1: Catch the view immediately when it attaches to the window hierarchy
-            XposedHelpers.findAndHookMethod(View.class, "onAttachedToWindow", new XC_MethodHook() {
+            XposedHelpers.findAndHookMethod(android.widget.ImageView.class, "onAttachedToWindow", new XC_MethodHook() {
                 private final java.util.Set<Class<?>> hookedClasses = new java.util.HashSet<>();
-                private final java.util.Set<Class<?>> hookedViewPagerClasses = new java.util.HashSet<>();
 
                 @Override
                 protected void afterHookedMethod(MethodHookParam param) throws Throwable {
                     View view = (View) param.thisObject;
                     if (view.getId() == fabId) {
                         boolean isChats = isChatsTabActive(view);
-                        XposedBridge.log("[WAE] Intercepted onAttachedToWindow for fab_second, isChatsTabActive = " + isChats);
 
                         // Dynamically traverse up the hierarchy to hook setVisibility overrides (always do this for fab_second)
                         Class<?> clazz = view.getClass();
-                        while (clazz != null && clazz != View.class) {
+                        while (clazz != null && clazz != android.widget.ImageView.class && clazz != View.class) {
                             boolean alreadyHooked;
                             synchronized (hookedClasses) {
                                 alreadyHooked = hookedClasses.contains(clazz);
@@ -640,14 +613,12 @@ public class Others extends Feature {
 
                                     // Hook it
                                     XposedHelpers.findAndHookMethod(clazz, "setVisibility", int.class, visibilityHook);
-                                    XposedBridge.log("[WAE] Dynamically hooked setVisibility on class: " + clazz.getName());
                                     synchronized (hookedClasses) {
                                         hookedClasses.add(clazz);
                                     }
                                 } catch (NoSuchMethodException ignored) {
                                     // Walk up
                                 } catch (Throwable t) {
-                                    XposedBridge.log("[WAE] Failed to hook setVisibility on " + clazz.getName() + ": " + t.getMessage());
                                 }
                             }
                             clazz = clazz.getSuperclass();
@@ -655,23 +626,6 @@ public class Others extends Feature {
 
                         if (isChats) {
                             view.setVisibility(View.GONE);
-                        }
-                    } else {
-                        // Check if this view is an instance of androidx.viewpager.widget.ViewPager
-                        Class<?> vpClass = XposedHelpers.findClassIfExists("androidx.viewpager.widget.ViewPager", view.getContext().getClassLoader());
-                        if (vpClass != null && vpClass.isInstance(view)) {
-                            Class<?> currentVpClass = view.getClass();
-                            boolean alreadyHooked;
-                            synchronized (hookedViewPagerClasses) {
-                                alreadyHooked = hookedViewPagerClasses.contains(currentVpClass);
-                            }
-                            if (!alreadyHooked) {
-                                synchronized (hookedViewPagerClasses) {
-                                    hookedViewPagerClasses.add(currentVpClass);
-                                }
-                                XposedBridge.log("[WAE] ViewPager attached: " + currentVpClass.getName() + ", setting up hooks");
-                                setupViewPagerHooks(currentVpClass, fabId);
-                            }
                         }
                     }
                 }
@@ -685,13 +639,9 @@ public class Others extends Feature {
             int fabId = Utils.getID("fab_second", "id");
             if (fabId <= 0) return;
             View fab = root.findViewById(fabId);
-            XposedBridge.log("[WAE] hideFabSecond: found FAB = " + fab);
             if (fab != null) {
                 if (fab.getVisibility() != View.GONE) {
-                    XposedBridge.log("[WAE] hideFabSecond: setting FAB visibility to GONE");
                     fab.setVisibility(View.GONE);
-                } else {
-                    XposedBridge.log("[WAE] hideFabSecond: FAB is already GONE");
                 }
             }
         } catch (Throwable ignored) {}

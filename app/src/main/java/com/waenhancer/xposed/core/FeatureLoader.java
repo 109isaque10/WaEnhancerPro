@@ -468,10 +468,8 @@ public class FeatureLoader {
                         // so we must not read them from there either.
                         boolean needRestart = WppCore.getPrivBoolean("need_restart", false);
 
-                        if (needRestart && !isRestartDialogShowing) {
-                            if (isHomeActivity(activity)) {
-                                activity.invalidateOptionsMenu();
-                            }
+                        if (needRestart && !isRestartDialogShowing && isHomeActivity(activity)) {
+                            activity.invalidateOptionsMenu();
                             isRestartDialogShowing = true;
                             String msg = getModuleString(ResId.string.restart_wpp);
                             String btnRestart = getModuleString(ResId.string.restart_whatsapp);
