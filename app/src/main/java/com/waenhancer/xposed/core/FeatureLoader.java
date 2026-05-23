@@ -165,6 +165,21 @@ public class FeatureLoader {
         return (result != null && !result.isEmpty()) ? result : fallback;
     }
 
+    /**
+     * Resolve a module string resource using the host context's locale.
+     * This is required when WhatsApp overrides the system language and we need
+     * the module strings to respect the in-app language preference.
+     */
+    public static String getModuleString(Context context, int resId, String fallback) {
+        try {
+            Context moduleContext = context.createPackageContext("com.waenhancer", 0);
+            String result = moduleContext.getResources().getString(resId);
+            return (result != null && !result.isEmpty()) ? result : fallback;
+        } catch (Throwable t) {
+            return getModuleString(resId, fallback);
+        }
+    }
+
     public static void start(@NonNull ClassLoader loader, @NonNull android.content.SharedPreferences pref, String sourceDir) {
         hostClassLoader = loader;
         Feature.DEBUG = pref.getBoolean("enablelogs", true);

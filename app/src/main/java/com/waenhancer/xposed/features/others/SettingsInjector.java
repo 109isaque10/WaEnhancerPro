@@ -115,10 +115,39 @@ public class SettingsInjector extends Feature {
             ViewGroup root = activity.findViewById(android.R.id.content);
             if (root == null) return;
 
-            // Check if our custom tile is already injected
-            if (root.findViewById(VIEW_ID_WAE_SETTINGS) != null) return;
+            // Strategy 1: Find main settings container by structure (Vertical LinearLayout with multiple clickable rows)
+            ViewGroup listContainer = findSettingsListByStructure(root);
+            if (listContainer != null) {
+                View anchorRow = null;
+                int insertionIndex = 1;
+                int validRowCount = 0;
 
-            // Find TextViews for Account and Privacy using localized resources
+                for (int i = 0; i < listContainer.getChildCount(); i++) {
+                    View child = listContainer.getChildAt(i);
+                    if (child instanceof ViewGroup && (child.isClickable() || child.hasOnClickListeners())) {
+                        if (findImageView(child) != null && findTextView(child) != null) {
+                            validRowCount++;
+                            anchorRow = child;
+                            // Insert after the first valid settings row (which is usually the Profile row)
+                            if (validRowCount == 1) {
+                                insertionIndex = i + 1;
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                if (anchorRow != null) {
+                    View customRow = createDynamicSettingRow(activity, anchorRow);
+                    if (customRow != null) {
+                        customRow.setId(VIEW_ID_WAE_SETTINGS);
+                        listContainer.addView(customRow, insertionIndex);
+                        return; // Success
+                    }
+                }
+            }
+
+            // Strategy 2: Fallback to finding TextViews for Account and Privacy using localized resources
             View accountTextView = findTextViewWithText(root, getLocalizedText(activity, "settings_account", "Account"));
             View privacyTextView = findTextViewWithText(root, getLocalizedText(activity, "settings_privacy", "Privacy"));
 
@@ -237,6 +266,33 @@ public class SettingsInjector extends Feature {
         return null;
     }
 
+    private ViewGroup findSettingsListByStructure(View view) {
+        if (view instanceof android.widget.LinearLayout) {
+            android.widget.LinearLayout layout = (android.widget.LinearLayout) view;
+            if (layout.getOrientation() == android.widget.LinearLayout.VERTICAL) {
+                int clickableRows = 0;
+                for (int i = 0; i < layout.getChildCount(); i++) {
+                    View child = layout.getChildAt(i);
+                    if (child instanceof ViewGroup && (child.isClickable() || child.hasOnClickListeners())) {
+                        clickableRows++;
+                    }
+                }
+                // The main settings screen usually has many clickable rows (Profile, Account, Privacy, etc.)
+                if (clickableRows >= 4) {
+                    return layout;
+                }
+            }
+        }
+        if (view instanceof ViewGroup) {
+            ViewGroup group = (ViewGroup) view;
+            for (int i = 0; i < group.getChildCount(); i++) {
+                ViewGroup found = findSettingsListByStructure(group.getChildAt(i));
+                if (found != null) return found;
+            }
+        }
+        return null;
+    }
+
     private ImageView findImageView(View view) {
         if (view instanceof ImageView) {
             return (ImageView) view;
@@ -338,7 +394,7 @@ public class SettingsInjector extends Feature {
 
             // Title TextView
             android.widget.TextView titleText = new android.widget.TextView(activity);
-            titleText.setText(com.waenhancer.xposed.core.FeatureLoader.getModuleString(R.string.waenhancer_settings, "WaEnhancerX Settings"));
+            titleText.setText(com.waenhancer.xposed.core.FeatureLoader.getModuleString(activity, R.string.waenhancer_settings, "WaEnhancerX Settings"));
 
             // Extract title typography from the anchor title TextView if available
             if (anchorTitle != null) {
@@ -355,6 +411,7 @@ public class SettingsInjector extends Feature {
             // Summary TextView (Professional 1-2 line settings guide)
             android.widget.TextView summaryText = new android.widget.TextView(activity);
             summaryText.setText(com.waenhancer.xposed.core.FeatureLoader.getModuleString(
+                activity,
                 R.string.waenhancer_settings_desc, 
                 "Configure WaEnhancerX features, UI customization, and privacy settings."
             ));
@@ -505,7 +562,7 @@ public class SettingsInjector extends Feature {
             if (menu != null && menu.findItem(MENU_ID_WAE_SETTINGS) == null) {
                 String title = "WaEnhancerX Settings";
                 try {
-                    String moduleTitle = com.waenhancer.xposed.core.FeatureLoader.getModuleString(R.string.waenhancer_settings);
+                    String moduleTitle = com.waenhancer.xposed.core.FeatureLoader.getModuleString(activity, R.string.waenhancer_settings, "WaEnhancerX Settings");
                     if (moduleTitle != null && !moduleTitle.isEmpty()) {
                         title = moduleTitle;
                     }
