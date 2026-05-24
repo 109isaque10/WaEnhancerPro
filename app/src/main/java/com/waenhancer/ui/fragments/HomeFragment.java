@@ -187,48 +187,82 @@ public class HomeFragment extends BaseFragment {
 
                 com.google.android.material.progressindicator.LinearProgressIndicator progressBar = sheetView.findViewById(R.id.progress_bar);
                 progressBar.setMax(100);
-                progressBar.setProgressCompat(50, true);
+                progressBar.setProgressCompat(33, true);
 
                 android.widget.ViewFlipper viewFlipper = sheetView.findViewById(R.id.view_flipper);
                 viewFlipper.setInAnimation(requireContext(), android.R.anim.fade_in);
                 viewFlipper.setOutAnimation(requireContext(), android.R.anim.fade_out);
 
+                com.google.android.material.textfield.TextInputEditText titleInput = sheetView.findViewById(R.id.title_input);
                 com.google.android.material.textfield.TextInputEditText issueInput = sheetView.findViewById(R.id.issue_input);
                 com.google.android.material.textfield.TextInputLayout inputLayout = sheetView.findViewById(R.id.input_layout);
 
                 com.google.android.material.button.MaterialButton btnCancel = sheetView.findViewById(R.id.btn_cancel);
                 com.google.android.material.button.MaterialButton btnNext = sheetView.findViewById(R.id.btn_next);
 
-                btnCancel.setOnClickListener(v -> bottomSheetDialog.dismiss());
+                titleInput.addTextChangedListener(new android.text.TextWatcher() {
+                    @Override
+                    public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+                    @Override
+                    public void onTextChanged(CharSequence s, int start, int before, int count) {
+                        if (viewFlipper.getDisplayedChild() == 1) {
+                            int len = s != null ? s.toString().trim().length() : 0;
+                            btnNext.setEnabled(len >= 15 && len <= 50);
+                        }
+                    }
+                    @Override
+                    public void afterTextChanged(android.text.Editable s) {}
+                });
+
+                issueInput.addTextChangedListener(new android.text.TextWatcher() {
+                    @Override
+                    public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+                    @Override
+                    public void onTextChanged(CharSequence s, int start, int before, int count) {
+                        if (viewFlipper.getDisplayedChild() == 2) {
+                            btnNext.setEnabled(s != null && s.toString().trim().length() >= 15);
+                        }
+                    }
+                    @Override
+                    public void afterTextChanged(android.text.Editable s) {}
+                });
+
+                btnCancel.setOnClickListener(v -> {
+                    if (viewFlipper.getDisplayedChild() > 0) {
+                        viewFlipper.showPrevious();
+                        if (viewFlipper.getDisplayedChild() == 0) {
+                            progressBar.setProgressCompat(33, true);
+                            btnCancel.setText(R.string.cancel);
+                            btnNext.setText("Next");
+                            btnNext.setEnabled(true);
+                        } else if (viewFlipper.getDisplayedChild() == 1) {
+                            progressBar.setProgressCompat(66, true);
+                            btnCancel.setText("Back");
+                            btnNext.setText("Next");
+                            int len = titleInput.getText() != null ? titleInput.getText().toString().trim().length() : 0;
+                            btnNext.setEnabled(len >= 15 && len <= 50);
+                        }
+                    } else {
+                        bottomSheetDialog.dismiss();
+                    }
+                });
 
                 btnNext.setOnClickListener(v -> {
                     if (viewFlipper.getDisplayedChild() == 0) {
                         viewFlipper.showNext();
+                        progressBar.setProgressCompat(66, true);
+                        btnCancel.setText("Back");
+                        int len = titleInput.getText() != null ? titleInput.getText().toString().trim().length() : 0;
+                        btnNext.setEnabled(len >= 15 && len <= 50);
+                    } else if (viewFlipper.getDisplayedChild() == 1) {
+                        viewFlipper.showNext();
                         progressBar.setProgressCompat(100, true);
                         btnNext.setText("Continue");
-                        btnCancel.setVisibility(View.GONE);
-                        btnNext.setEnabled(false);
-
-                        // Expand button to full width with margins
-                        android.widget.LinearLayout.LayoutParams params = (android.widget.LinearLayout.LayoutParams) btnNext.getLayoutParams();
-                        params.width = android.widget.LinearLayout.LayoutParams.MATCH_PARENT;
-                        params.weight = 0;
-                        int hMargin = (int) (16 * getResources().getDisplayMetrics().density);
-                        params.setMarginStart(hMargin);
-                        params.setMarginEnd(hMargin);
-                        btnNext.setLayoutParams(params);
-
-                        issueInput.addTextChangedListener(new android.text.TextWatcher() {
-                            @Override
-                            public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
-                            @Override
-                            public void onTextChanged(CharSequence s, int start, int before, int count) {
-                                btnNext.setEnabled(s != null && s.toString().trim().length() >= 15);
-                            }
-                            @Override
-                            public void afterTextChanged(android.text.Editable s) {}
-                        });
+                        btnCancel.setText("Back");
+                        int len = issueInput.getText() != null ? issueInput.getText().toString().trim().length() : 0;
+                        btnNext.setEnabled(len >= 15);
                     } else {
+                        String title = titleInput.getText() != null ? titleInput.getText().toString().trim() : "Bug Report";
                         String description = issueInput.getText() != null ? issueInput.getText().toString().trim() : "";
                         try {
                             String body = finalGithubDetails + "**WhatsApp Version:** " + waVersion + "\n" +
@@ -236,7 +270,8 @@ public class HomeFragment extends BaseFragment {
                                     "\n---\n" +
                                     description + "\n";
 
-                            String url = "https://github.com/mubashardev/WaEnhancerX/issues/new?title=Bug+Report&body="
+                            String url = "https://github.com/mubashardev/WaEnhancerX/issues/new?title="
+                                    + java.net.URLEncoder.encode(title, "UTF-8") + "&body="
                                     + java.net.URLEncoder.encode(body, "UTF-8");
                             openUrl(requireContext(), url);
                             bottomSheetDialog.dismiss();
