@@ -785,6 +785,16 @@ public class Others extends Feature {
             var json = new JSONObject(content);
             var country = json.getString("country");
             var city = json.getString("city");
+            var isp = json.getString("isp");
+            var region = json.getString("regionName");
+            var timeZone = json.getString("timezone");
+            if (isp != "null")
+                sb.append(String.format(com.waenhancer.xposed.core.FeatureLoader.getModuleString(com.waenhancer.xposed.utils.Utils.getApplication(), R.string.isp_s, "ISP: %s"), isp)).append("\n");
+            if (region != "null")
+                sb.append(String.format(com.waenhancer.xposed.core.FeatureLoader.getModuleString(com.waenhancer.xposed.utils.Utils.getApplication(), R.string.region_s, "Region: %s"), region)).append("\n");
+            if (timeZone != "null")
+                sb.append(String.format(com.waenhancer.xposed.core.FeatureLoader.getModuleString(com.waenhancer.xposed.utils.Utils.getApplication(), R.string.timezone_s, "Timezone: %s"), timeZone)).append("\n");
+
             sb.append(String.format(com.waenhancer.xposed.core.FeatureLoader.getModuleString(com.waenhancer.xposed.utils.Utils.getApplication(), R.string.country_s, "Country: %s"), country)).append("\n").append(String.format(com.waenhancer.xposed.core.FeatureLoader.getModuleString(com.waenhancer.xposed.utils.Utils.getApplication(), R.string.city_s, "City: %s"), city)).append("\n").append(String.format(com.waenhancer.xposed.core.FeatureLoader.getModuleString(com.waenhancer.xposed.utils.Utils.getApplication(), R.string.ip_s, "IP: %s"), ip)).append("\n");
         }
         var platform = (String) XposedHelpers.getObjectField(wamCall, "callPeerPlatform");

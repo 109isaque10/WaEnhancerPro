@@ -14,7 +14,6 @@ import android.widget.TextView;
 
 import com.waenhancer.xposed.core.components.AlertDialogWpp;
 import com.waenhancer.xposed.utils.DesignUtils;
-import com.waenhancer.R;
 
 public class SimpleColorPickerDialog extends AlertDialogWpp {
 
@@ -30,7 +29,7 @@ public class SimpleColorPickerDialog extends AlertDialogWpp {
     @Override
     public Dialog create() {
 
-        setTitle(getContext().getString(R.string.select_a_color));
+        setTitle("Select a Color");
 
         // Configura o layout principal do diálogo
         LinearLayout layout = new LinearLayout(getContext());
@@ -160,7 +159,7 @@ public class SimpleColorPickerDialog extends AlertDialogWpp {
             dismiss();
         });
 
-        setNegativeButton(getContext().getString(R.string.cancel), (dialogInterface, i) -> {
+        setNegativeButton("Cancel", (dialogInterface, i) -> {
             dismiss();
         });
 

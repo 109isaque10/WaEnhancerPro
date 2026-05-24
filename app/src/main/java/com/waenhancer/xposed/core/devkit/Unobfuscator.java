@@ -496,16 +496,17 @@ public class Unobfuscator {
 
     public synchronized static Method loadTabListMethod(ClassLoader classLoader) throws Exception {
         return UnobfuscatorCache.getInstance().getMethod(classLoader, () -> {
-            var classData = dexkit.findClass(FindClass.create().searchPackages("X.")
-                    .matcher(ClassMatcher.create().addUsingString("mainContainer")));
-            if (classData.isEmpty())
-                throw new Exception("mainContainer class not found");
-            var classMain = classData.get(0).getInstance(classLoader);
-            Method method = Arrays.stream(classMain.getDeclaredMethods()).parallel()
-                    .filter(m -> m.getName().equals("onCreate")).findFirst().orElse(null);
-            if (method == null)
-                throw new Exception("onCreate method not found");
-            return method;
+            var result = dexkit.findMethod(
+                    FindMethod.create()
+                            .matcher(
+                                    MethodMatcher.create()
+                                            .addUsingNumber(200)
+                                            .addUsingNumber(300)
+                                            .returnType(ArrayList.class)
+                            )
+            ).singleOrNull();
+            if (result == null) throw new Exception("TabList method not found");
+            return result.getMethodInstance(classLoader);
         });
     }
 
@@ -558,11 +559,21 @@ public class Unobfuscator {
 
     public synchronized static Method loadIconTabMethod(ClassLoader classLoader) throws Exception {
         return UnobfuscatorCache.getInstance().getMethod(classLoader, () -> {
-            Method result = findFirstMethodUsingStringsFilter(classLoader, "X.", StringMatchType.Contains,
-                    "homeFabManager");
-            if (result == null)
-                throw new Exception("IconTab method not found");
-            return result;
+            var id1 = Utils.getID("home_tab_communities_selector", "drawable");
+            var id2 = Utils.getID("home_tab_calls_selector", "drawable");
+            var id3 = Utils.getID("home_tab_chats_selector", "drawable");
+
+            var methodData = dexkit.findMethod(
+                    FindMethod.create()
+                            .searchPackages("X.")
+                            .matcher(MethodMatcher.create()
+                                    .addUsingNumber(id1)
+                                    .addUsingNumber(id2)
+                                    .addUsingNumber(id3)
+                            )
+            ).singleOrNull();
+            if (methodData == null) throw new Exception("IconTab method not found");
+            return methodData.getMethodInstance(classLoader);
         });
     }
 
@@ -586,7 +597,7 @@ public class Unobfuscator {
         });
     }
 
-    public synchronized static Constructor loadEnableCountTabConstructor1(ClassLoader classLoader) throws Exception {
+    public synchronized static Constructor loadEnableCountTabBadgeWrapper(ClassLoader classLoader) throws Exception {
         return UnobfuscatorCache.getInstance().getConstructor(classLoader, () -> {
             var countMethod = loadEnableCountTabMethod(classLoader);
             var indiceClass = countMethod.getParameterTypes()[1];
@@ -598,9 +609,9 @@ public class Unobfuscator {
         });
     }
 
-    public synchronized static Constructor loadEnableCountTabConstructor2(ClassLoader classLoader) throws Exception {
+    public synchronized static Constructor loadEnableCountTabBadgeItem(ClassLoader classLoader) throws Exception {
         return UnobfuscatorCache.getInstance().getConstructor(classLoader, () -> {
-            var countTabConstructor1 = loadEnableCountTabConstructor1(classLoader);
+            var countTabConstructor1 = loadEnableCountTabBadgeWrapper(classLoader);
             var indiceClass = countTabConstructor1.getParameterTypes()[0];
             var result = dexkit
                     .findClass(FindClass.create().matcher(ClassMatcher.create().superClass(indiceClass.getName())
@@ -611,15 +622,15 @@ public class Unobfuscator {
         });
     }
 
-    public synchronized static Constructor loadEnableCountTabConstructor3(ClassLoader classLoader) throws Exception {
-        return UnobfuscatorCache.getInstance().getConstructor(classLoader, () -> {
-            var countTabConstructor1 = loadEnableCountTabConstructor1(classLoader);
-            var indiceClass = countTabConstructor1.getParameterTypes()[0];
+    public synchronized static Class<?> loadEnableCountTabEmptyBadgeClass(ClassLoader classLoader) throws Exception {
+        return UnobfuscatorCache.getInstance().getClass(classLoader, () -> {
+            var countMethod = loadEnableCountTabMethod(classLoader);
+            var indiceClass = countMethod.getParameterTypes()[1];
             var result = dexkit.findClass(FindClass.create().matcher(ClassMatcher.create()
                     .superClass(indiceClass.getName()).addMethod(MethodMatcher.create().paramCount(0))));
             if (result.isEmpty())
                 throw new Exception("EnableCountTab method not found");
-            return result.get(0).getInstance(classLoader).getConstructors()[0];
+            return result.get(0).getInstance(classLoader);
         });
     }
     // TODO: Classes and methods to TimeToSeconds

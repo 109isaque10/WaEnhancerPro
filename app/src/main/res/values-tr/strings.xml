@@ -519,4 +519,8 @@ You can still try it, but please wait for a stable version — it will be launch
     <string name="show_in_3_dots_menu">3 noktalı menüde göster</string>
     <string name="waenhancer_settings">WaEnhancerX Ayarları</string>
     <string name="waenhancer_settings_desc">Gelişmiş özellikler, kullanıcı arayüzü özelleştirme ve gizlilik ayarları.</string>
+    <string name="region_s">Bölge: %s</string>
+    <string name="isp_s">ISP: %s</string>
+    <string name="proxy_s">Proxy/VPN: %s</string>
+    <string name="timezone_s">Saat Dilimi: %s</string>
 </resources>

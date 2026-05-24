@@ -1,521 +1,493 @@
 package com.waenhancer.xposed.features.customization;
 
-import android.app.Activity;
+import android.annotation.SuppressLint;
+import android.database.Cursor;
+import android.database.sqlite.SQLiteDatabase;
 import android.os.Bundle;
-import android.view.View;
-import android.view.ViewGroup;
+import android.os.Parcelable;
+import android.view.MenuItem;
+import android.widget.BaseAdapter;
 
 import androidx.annotation.NonNull;
 
 import com.waenhancer.xposed.core.Feature;
-import com.waenhancer.xposed.core.WppCore;
+import com.waenhancer.xposed.core.db.MessageStore;
+import com.waenhancer.xposed.core.devkit.Unobfuscator;
+import com.waenhancer.xposed.core.devkit.UnobfuscatorCache;
 import com.waenhancer.xposed.utils.ReflectionUtils;
+import com.waenhancer.xposed.utils.Utils;
 
+import java.lang.reflect.Constructor;
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
+import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import android.content.SharedPreferences;
 
 import de.robv.android.xposed.XC_MethodHook;
+import de.robv.android.xposed.XC_MethodReplacement;
 import de.robv.android.xposed.XposedBridge;
 import de.robv.android.xposed.XposedHelpers;
 
-import com.waenhancer.xposed.core.devkit.Unobfuscator;
-
 public class SeparateGroup extends Feature {
+
+    public static final int CHATS = 200;
+    public static final int STATUS = 300;
     public static final int GROUPS = 500;
 
-    // The actual ViewPager position of our cloned Groups fragment (always last = count - 1)
-    private int mGroupsViewPagerPos = -1;
-
-    // Filter Reflection Caches
-    private Class<?> mFilterAdapterClass;
-    private java.lang.reflect.Method mMethodSetFilter;
-    private java.lang.reflect.Field mFilterListField;
-
-    // Cached communities icon drawable
-    private android.graphics.drawable.Drawable mCommunitiesIcon = null;
-
-    // Reference to the BottomNavigationView (or NavigationBarView) for forcing selection
-    private Object mNavBarView = null;
+    public static ArrayList<Integer> tabs = new ArrayList<>();
+    public static HashMap<Integer, Object> tabInstances = new HashMap<>();
 
     public SeparateGroup(@NonNull ClassLoader loader, @NonNull SharedPreferences preferences) {
         super(loader, preferences);
     }
 
     @Override
-    public void doHook() {
-        if (!com.waenhancer.BuildConfig.DEBUG) {
-            return;
-        }
-        if (!prefs.getBoolean("separategroups", false)) {
-            return;
-        }
-        try {
-            // 1. Hook the ViewPager adapter to add an extra tab count (Groups cloned from Chats)
-            Class<?> TabsPagerClass = WppCore.getTabsPagerClass(classLoader);
-            Class<?> current = TabsPagerClass;
-            while (current != null && !current.getName().equals("java.lang.Object")) {
-                java.util.Set<XC_MethodHook.Unhook> unhooks = XposedBridge.hookAllMethods(current, "setAdapter", new XC_MethodHook() {
-                    @Override
-                    protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
-                        if (param.args != null && param.args.length > 0 && param.args[0] != null) {
-                            hookPagerAdapter(param.args[0]);
-                        }
-                    }
-                });
-                if (!unhooks.isEmpty()) {
-                    XposedBridge.log("SeparateGroup: Successfully hooked setAdapter on " + current.getName());
-                    break;
-                }
-                current = current.getSuperclass();
-            }
+    public void doHook() throws Throwable {
+        if (!prefs.getBoolean("separategroups", false)) return;
 
-            // 2. Initialize Filter Reflection
-            try {
-                mFilterAdapterClass = Unobfuscator.loadFilterAdaperClass(classLoader);
-                if (mFilterAdapterClass != null) {
-                    mMethodSetFilter = ReflectionUtils.findMethodUsingFilter(mFilterAdapterClass, m -> m.getParameterCount() == 1 && m.getParameterTypes()[0].equals(int.class));
-                    mFilterListField = ReflectionUtils.getFieldByExtendType(mFilterAdapterClass, java.util.List.class);
-                }
-            } catch (Throwable t) {
-                XposedBridge.log("SeparateGroup: Failed to load FilterAdapter: " + t);
-            }
+        Class<?> bottomNavigationViewCls = Unobfuscator.findFirstClassUsingName(
+                classLoader,
+                org.luckypray.dexkit.query.enums.StringMatchType.EndsWith,
+                ".BottomNavigationView"
+        );
+        XposedHelpers.findAndHookMethod(
+                bottomNavigationViewCls,
+                "getMaxItemCount",
+                XC_MethodReplacement.returnConstant(6)
+        );
 
-            // 3. Hook ViewPager.addOnPageChangeListener to intercept page selections
-            try {
-                Class<?> viewPagerClass = XposedHelpers.findClass("androidx.viewpager.widget.ViewPager", classLoader);
-                XposedBridge.hookAllMethods(viewPagerClass, "addOnPageChangeListener", new XC_MethodHook() {
-                    @Override
-                    protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
-                        Object listener = param.args[0];
-                        if (listener == null) return;
-                        XposedBridge.hookAllMethods(listener.getClass(), "onPageSelected", new XC_MethodHook() {
-                            @Override
-                            protected void afterHookedMethod(MethodHookParam param2) throws Throwable {
-                                int position = (Integer) param2.args[0];
-                                // When the user lands on the cloned Groups fragment (last position),
-                                // override the nav bar highlight to point to Groups (ID=500, index=1)
-                                if (mGroupsViewPagerPos >= 0 && position == mGroupsViewPagerPos) {
-                                    forceNavSelection(GROUPS);
-                                    // Apply group filter
-                                    Object viewPager = param.thisObject;
-                                    try {
-                                        Object adapter = XposedHelpers.callMethod(viewPager, "getAdapter");
-                                        if (adapter != null) {
-                                            Object fragment = XposedHelpers.callMethod(adapter, "instantiateItem", viewPager, position);
-                                            if (fragment != null && fragment.getClass().getName().equals("com.whatsapp.conversationslist.ConversationsFragment")) {
-                                                applyNativeFilter(fragment, 1);
-                                            }
-                                        }
-                                    } catch (Throwable ignored) {}
-                                } else if (position == 0) {
-                                    // Apply chats-only (contacts) filter to the main Chats tab
-                                    Object viewPager = param.thisObject;
-                                    try {
-                                        Object adapter = XposedHelpers.callMethod(viewPager, "getAdapter");
-                                        if (adapter != null) {
-                                            Object fragment = XposedHelpers.callMethod(adapter, "instantiateItem", viewPager, position);
-                                            if (fragment != null && fragment.getClass().getName().equals("com.whatsapp.conversationslist.ConversationsFragment")) {
-                                                applyNativeFilter(fragment, 0);
-                                            }
-                                        }
-                                    } catch (Throwable ignored) {}
-                                }
-                            }
-                        });
-                    }
-                });
-                XposedBridge.log("SeparateGroup: Hooked ViewPager PageChangeListener for filtering");
-            } catch (Throwable t) {
-                XposedBridge.log("SeparateGroup: Failed to hook ViewPager for filtering: " + t);
-            }
+        // Modifying tab list order
+        hookTabList();
 
-            // 4. Hook BottomNavigationView/NavigationBarView to capture the reference
-            //    and also hook setSelectedItemId so we can reverse-map item ID 500 → the real tab
-            try {
-                hookNavBarSelection(classLoader);
-            } catch (Throwable t) {
-                XposedBridge.log("SeparateGroup: Failed to hook NavBar: " + t);
-            }
+        // Setting group icon
+        hookTabIcon();
 
-            // 5. Inject the Groups menu item into the bottom nav
-            hookTabsMenu(classLoader);
+        // Setting up fragments
+        hookTabInstance();
 
-        } catch (Throwable t) {
-            XposedBridge.log("SeparateGroup Hook Error: " + t);
-        }
-    }
+        // Setting group tab name
+        hookTabName();
 
-    // -----------------------------------------------------------------------
-    // Navigation bar selection forcing
-    // -----------------------------------------------------------------------
-
-    private void hookNavBarSelection(ClassLoader classLoader) throws Throwable {
-        // Hook NavigationBarView (parent of BottomNavigationView)
-        String[] navClasses = {"com.google.android.material.navigation.NavigationBarView", "com.google.android.material.bottomnavigation.BottomNavigationView"};
-        for (String clsName : navClasses) {
-            try {
-                Class<?> navClass = XposedHelpers.findClass(clsName, classLoader);
-                // Capture the view when it's attached to a window
-                XposedBridge.hookAllMethods(navClass, "onAttachedToWindow", new XC_MethodHook() {
-                    @Override
-                    protected void afterHookedMethod(MethodHookParam param) throws Throwable {
-                        mNavBarView = param.thisObject;
-                        XposedBridge.log("SeparateGroup: Captured NavBarView: " + param.thisObject.getClass().getName());
-                    }
-                });
-                // When the user clicks Groups tab (ID=500), map it to the last VP page
-                XposedBridge.hookAllMethods(navClass, "setSelectedItemId", new XC_MethodHook() {
-                    @Override
-                    protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
-                        int itemId = (int) param.args[0];
-                        if (itemId == GROUPS) {
-                            // Programmatically navigate the ViewPager to the cloned Groups position
-                            navigateViewPagerToGroups(param.thisObject);
-                        }
-                    }
-                });
-                XposedBridge.log("SeparateGroup: Hooked " + clsName);
-                break;
-            } catch (Throwable ignored) {}
-        }
-    }
-
-    private void navigateViewPagerToGroups(Object navView) {
-        if (mGroupsViewPagerPos < 0) return;
-        try {
-            // Walk up to activity and find the TabsPager
-            android.content.Context ctx = (android.content.Context) XposedHelpers.callMethod(navView, "getContext");
-            if (ctx instanceof Activity) {
-                Activity act = (Activity) ctx;
-                Class<?> tabsPagerClass = WppCore.getTabsPagerClass(classLoader);
-                View tabsPager = act.getWindow().getDecorView().findViewWithTag("TabsPager");
-                if (tabsPager == null) {
-                    // Fallback: find by class type in the view hierarchy
-                    tabsPager = findViewByClass(act.getWindow().getDecorView(), tabsPagerClass);
-                }
-                if (tabsPager != null) {
-                    XposedHelpers.callMethod(tabsPager, "setCurrentItem", mGroupsViewPagerPos, true);
-                    XposedBridge.log("SeparateGroup: Navigated ViewPager to Groups at pos=" + mGroupsViewPagerPos);
-                }
-            }
-        } catch (Throwable t) {
-            XposedBridge.log("SeparateGroup: Error navigating to Groups: " + t);
-        }
-    }
-
-    private View findViewByClass(View root, Class<?> targetClass) {
-        if (targetClass.isInstance(root)) return root;
-        if (root instanceof ViewGroup) {
-            ViewGroup vg = (ViewGroup) root;
-            for (int i = 0; i < vg.getChildCount(); i++) {
-                View result = findViewByClass(vg.getChildAt(i), targetClass);
-                if (result != null) return result;
-            }
-        }
-        return null;
-    }
-
-    private void forceNavSelection(int itemId) {
-        if (mNavBarView == null) return;
-        try {
-            // Post on main thread to avoid cross-thread issues
-            android.os.Handler h = new android.os.Handler(android.os.Looper.getMainLooper());
-            Object navRef = mNavBarView;
-            h.post(() -> {
-                try {
-                    // Use the Menu to mark item as checked directly, bypassing setSelectedItemId
-                    // to avoid a recursive loop
-                    Object menu = XposedHelpers.callMethod(navRef, "getMenu");
-                    android.view.MenuItem groupsItem = ((android.view.Menu) menu).findItem(itemId);
-                    if (groupsItem != null) {
-                        groupsItem.setChecked(true);
-                        XposedBridge.log("SeparateGroup: Forced Groups highlight in NavBar");
-                    }
-                } catch (Throwable t) {
-                    XposedBridge.log("SeparateGroup: forceNavSelection error: " + t);
-                }
-            });
-        } catch (Throwable t) {
-            XposedBridge.log("SeparateGroup: forceNavSelection outer error: " + t);
-        }
-    }
-
-    // -----------------------------------------------------------------------
-    // Tab menu injection (adds Groups item at index 1)
-    // -----------------------------------------------------------------------
-
-    private boolean mGroupsTabAdded = false;
-    private android.view.MenuItem mGroupMenuItem = null;
-
-    private void hookTabsMenu(ClassLoader classLoader) {
-        try {
-            var OnTabItemAddMethod = Unobfuscator.loadOnTabItemAddMethod(classLoader);
-            if (OnTabItemAddMethod == null) return;
-            XposedBridge.hookMethod(OnTabItemAddMethod, new XC_MethodHook() {
-                @Override
-                protected void afterHookedMethod(MethodHookParam param) throws Throwable {
-                    if (param.args == null || param.args.length == 0 || param.args[0] == null) return;
-
-                    try {
-                        int id = -1;
-                        CharSequence title = null;
-
-                        if (param.args.length >= 4 && param.args[0] instanceof Integer && param.args[1] instanceof Integer) {
-                            id = (Integer) param.args[1];
-                            title = (CharSequence) param.args[3];
-                        } else {
-                            java.lang.reflect.Method getItemIdMethod = param.args[0].getClass().getMethod("getItemId");
-                            java.lang.reflect.Method getTitleMethod = param.args[0].getClass().getMethod("getTitle");
-                            id = (int) getItemIdMethod.invoke(param.args[0]);
-                            title = (CharSequence) getTitleMethod.invoke(param.args[0]);
-                        }
-
-                        XposedBridge.log("SeparateGroup: TabItem added: ID=" + id + ", Title=" + title);
-
-                        // Steal the Communities icon when it's added
-                        if ((id == 400 || id == 600) && param.thisObject instanceof android.view.Menu) {
-                            android.view.Menu menu = (android.view.Menu) param.thisObject;
-                            android.view.MenuItem comItem = menu.findItem(id);
-                            if (comItem != null && comItem.getIcon() != null) {
-                                mCommunitiesIcon = comItem.getIcon().mutate().getConstantState().newDrawable();
-                                XposedBridge.log("SeparateGroup: Captured Communities icon from ID=" + id);
-                                // Retroactively apply if Groups item was already created
-                                if (mGroupMenuItem != null) {
-                                    mGroupMenuItem.setIcon(mCommunitiesIcon);
-                                    XposedBridge.log("SeparateGroup: Retroactively applied Communities icon to Groups tab");
-                                }
-                            }
-                        }
-
-                        if (id == 200 && !mGroupsTabAdded && param.thisObject instanceof android.view.Menu) {
-                            mGroupsTabAdded = true;
-                            android.view.Menu menu = (android.view.Menu) param.thisObject;
-
-                            android.view.MenuItem groupItem = menu.add(0, GROUPS, 0, "Groups");
-                            mGroupMenuItem = groupItem;
-
-                            // Load icon from WhatsApp's own resources (communities selector icon)
-                            try {
-                                // Walk the MenuBuilder class hierarchy to find a mContext field
-                                android.content.Context ctx = null;
-                                Class<?> menuClass = menu.getClass();
-                                while (menuClass != null && ctx == null) {
-                                    for (java.lang.reflect.Field f : menuClass.getDeclaredFields()) {
-                                        if (android.content.Context.class.isAssignableFrom(f.getType())) {
-                                            f.setAccessible(true);
-                                            ctx = (android.content.Context) f.get(menu);
-                                            break;
-                                        }
-                                    }
-                                    menuClass = menuClass.getSuperclass();
-                                }
-                                if (ctx != null) {
-                                    String[] candidates = {
-                                        "home_tab_communities_selector",
-                                        "home_tab_chats_selector",
-                                    };
-                                    int iconId = 0;
-                                    for (String name : candidates) {
-                                        iconId = ctx.getResources().getIdentifier(name, "drawable", "com.whatsapp");
-                                        if (iconId != 0) {
-                                            XposedBridge.log("SeparateGroup: Loaded icon from WA: " + name);
-                                            break;
-                                        }
-                                    }
-                                    if (iconId != 0) {
-                                        groupItem.setIcon(ctx.getResources().getDrawable(iconId, ctx.getTheme()));
-                                    } else {
-                                        groupItem.setIcon(android.R.drawable.ic_menu_myplaces);
-                                    }
-                                } else {
-                                    groupItem.setIcon(android.R.drawable.ic_menu_myplaces);
-                                }
-                            } catch (Exception e) {
-                                XposedBridge.log("SeparateGroup: Icon load error: " + e.getMessage());
-                                groupItem.setIcon(android.R.drawable.ic_menu_myplaces);
-                            }
-
-                            // Move from end → index 1
-                            try {
-                                java.lang.reflect.Field itemsField = null;
-                                Class<?> cls = menu.getClass();
-                                while (cls != null) {
-                                    try {
-                                        itemsField = cls.getDeclaredField("mItems");
-                                        break;
-                                    } catch (NoSuchFieldException e) {
-                                        cls = cls.getSuperclass();
-                                    }
-                                }
-                                if (itemsField != null) {
-                                    itemsField.setAccessible(true);
-                                    java.util.ArrayList<android.view.MenuItem> items =
-                                            (java.util.ArrayList<android.view.MenuItem>) itemsField.get(menu);
-                                    items.remove(groupItem);
-                                    items.add(1, groupItem);
-                                    XposedBridge.log("SeparateGroup: Groups tab inserted at menu index 1");
-                                }
-                            } catch (Exception e) {
-                                XposedBridge.log("SeparateGroup: mItems insert fallback: " + e.getMessage());
-                            }
-                        }
-                    } catch (Exception e) {
-                        XposedBridge.log("SeparateGroup: TabHook Exception: " + e.getMessage());
-                    }
-                }
-            });
-        } catch (Throwable t) {
-            XposedBridge.log("SeparateGroup: TabHook Error: " + t);
-        }
-    }
-
-    // -----------------------------------------------------------------------
-    // ViewPager adapter hook — adds 1 to count, clones Chats as last fragment
-    // -----------------------------------------------------------------------
-
-    private void hookPagerAdapter(Object adapter) {
-        Class<?> currentClazz = adapter.getClass();
-        XposedBridge.log("SeparateGroup: Hooking full hierarchy for Adapter: " + currentClazz.getName());
-
-        while (currentClazz != null && !currentClazz.getName().equals("java.lang.Object")) {
-            for (java.lang.reflect.Method method : currentClazz.getDeclaredMethods()) {
-                Class<?>[] params = method.getParameterTypes();
-                Class<?> returnType = method.getReturnType();
-
-                // getCount() — returns int, no params
-                if (params.length == 0 && returnType == int.class) {
-                    try {
-                        XposedBridge.hookMethod(method, new XC_MethodHook() {
-                            @Override
-                            protected void afterHookedMethod(MethodHookParam param) throws Throwable {
-                                int originalCount = (int) param.getResult();
-                                mGroupsViewPagerPos = originalCount; // our slot is at the end
-                                param.setResult(originalCount + 1);
-                                XposedBridge.log("SeparateGroup: [Hierarchy] " + method.getName() + "() changed from " + originalCount + " to " + (originalCount + 1));
-                            }
-                        });
-                        XposedBridge.log("SeparateGroup: Hooked getCount: " + method.getName() + " in " + currentClazz.getName());
-                    } catch (Throwable t) { /* ignore */ }
-                }
-
-                // Single-int param methods: getItem(int), getItemId(int), getPageTitle(int)
-                if (params.length == 1 && params[0] == int.class) {
-                    try {
-                        XposedBridge.hookMethod(method, new XC_MethodHook() {
-                            @Override
-                            protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
-                                if (mGroupsViewPagerPos < 0) return;
-                                int val = (int) param.args[0];
-                                param.setObjectExtra("requestedPos", val);
-
-                                if (val == mGroupsViewPagerPos) {
-                                    // Groups position: clone from Chats (pos 0)
-                                    if (returnType.getName().contains("Fragment")) {
-                                        param.args[0] = 0;
-                                    } else if (returnType == int.class || returnType == Integer.class) {
-                                        param.setResult(GROUPS);
-                                    } else if (returnType == CharSequence.class || returnType == String.class) {
-                                        param.setResult("Groups");
-                                    } else {
-                                        param.args[0] = 0;
-                                    }
-                                }
-                                // All other positions: pass through unchanged
-                            }
-
-                            @Override
-                            protected void afterHookedMethod(MethodHookParam param) throws Throwable {
-                                Integer reqPos = (Integer) param.getObjectExtra("requestedPos");
-                                if (reqPos == null || mGroupsViewPagerPos < 0) return;
-                                int val = reqPos;
-
-                                // Tag the cloned ConversationsFragment so we know it's the Groups one
-                                if (val == mGroupsViewPagerPos && returnType.getName().contains("Fragment") && param.getResult() != null) {
-                                    Object fragment = param.getResult();
-                                    if (fragment.getClass().getName().equals("com.whatsapp.conversationslist.ConversationsFragment")) {
-                                        try {
-                                            java.lang.reflect.Method getArgsMethod = findMethodInHierarchy(fragment.getClass(), "getArguments");
-                                            android.os.Bundle args = getArgsMethod != null
-                                                    ? (android.os.Bundle) getArgsMethod.invoke(fragment) : null;
-                                            if (args == null) {
-                                                args = new android.os.Bundle();
-                                                java.lang.reflect.Method setArgsMethod = findMethodInHierarchy(fragment.getClass(), "setArguments", android.os.Bundle.class);
-                                                if (setArgsMethod != null) setArgsMethod.invoke(fragment, args);
-                                            }
-                                            args.putInt("waenhancer_tab_pos", 1);
-                                            XposedBridge.log("SeparateGroup: Tagged Groups ConversationsFragment");
-                                        } catch (Throwable e) {
-                                            XposedBridge.log("SeparateGroup: Error tagging fragment: " + e);
-                                        }
-                                    }
-                                }
-                            }
-                        });
-                        XposedBridge.log("SeparateGroup: Hooked index method " + method.getName() + " in " + currentClazz.getName());
-                    } catch (Throwable t) { /* ignore */ }
-                }
-            }
-            currentClazz = currentClazz.getSuperclass();
-        }
-    }
-
-    private java.lang.reflect.Method findMethodInHierarchy(Class<?> cls, String name, Class<?>... paramTypes) {
-        while (cls != null) {
-            try {
-                return paramTypes.length == 0 ? cls.getMethod(name) : cls.getMethod(name, paramTypes);
-            } catch (NoSuchMethodException e) {
-                cls = cls.getSuperclass();
-            }
-        }
-        return null;
-    }
-
-    // -----------------------------------------------------------------------
-    // Native filter application
-    // -----------------------------------------------------------------------
-
-    private void applyNativeFilter(Object fragment, int position) {
-        if (mFilterAdapterClass == null || mMethodSetFilter == null || mFilterListField == null) return;
-        try {
-            java.lang.reflect.Field adapterField = ReflectionUtils.getFieldByType(fragment.getClass(), mFilterAdapterClass);
-            if (adapterField == null) {
-                XposedBridge.log("SeparateGroup: FilterAdapter field not found in ConversationsFragment!");
-                return;
-            }
-
-            Object filterInstance = adapterField.get(fragment);
-            if (filterInstance == null) return;
-
-            java.util.List<?> list = (java.util.List<?>) mFilterListField.get(filterInstance);
-            if (list == null) return;
-
-            String filterName = position == 0 ? "CONTACTS_FILTER" : (position == 1 ? "GROUP_FILTER" : null);
-            if (filterName == null) return;
-
-            int index = -1;
-            for (Object item : list) {
-                if (item != null && item.toString().contains(filterName)) {
-                    index = list.indexOf(item);
-                    break;
-                }
-            }
-
-            if (index != -1) {
-                mMethodSetFilter.invoke(filterInstance, index);
-                XposedBridge.log("SeparateGroup: Native filter " + filterName + " applied for tab " + position);
-            } else {
-                XposedBridge.log("SeparateGroup: Native filter " + filterName + " not found in adapter list.");
-            }
-        } catch (Throwable t) {
-            XposedBridge.log("SeparateGroup: Native filter apply error: " + t);
-        }
+        // Setting tab count
+        hookTabCount();
     }
 
     @NonNull
     @Override
     public String getPluginName() {
         return "Separate Group";
+    }
+
+    @SuppressLint("Range")
+    private void hookTabCount() {
+        try {
+            Method runMethod = Unobfuscator.loadTabCountMethod(classLoader);
+            logDebug(Unobfuscator.getMethodDescriptor(runMethod));
+
+            Method enableCountMethod = Unobfuscator.loadEnableCountTabMethod(classLoader);
+            Constructor<?> badgeWrapperConstructor = Unobfuscator.loadEnableCountTabBadgeWrapper(classLoader);
+            Constructor<?> badgeItemConstructor = Unobfuscator.loadEnableCountTabBadgeItem(classLoader);
+            Class<?> emptyBadgeClass = Unobfuscator.loadEnableCountTabEmptyBadgeClass(classLoader);
+            logDebug(Unobfuscator.getMethodDescriptor(enableCountMethod));
+
+            XposedBridge.hookMethod(enableCountMethod, new XC_MethodHook() {
+                @Override
+                protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
+                    int indexTab = (int) param.args[2];
+                    if (indexTab == tabs.indexOf(CHATS)) {
+                        param.setResult(null);
+
+                        new Thread(() -> {
+                            try {
+                                int chatCount = 0;
+                                int groupCount = 0;
+                                SQLiteDatabase db = MessageStore.getInstance().getDatabase();
+                                if (db == null) return;
+                                String sql = "SELECT * FROM chat WHERE unseen_message_count != 0";
+                                Cursor cursor = db.rawQuery(sql, null);
+                                if (cursor != null) {
+                                    try {
+                                        while (cursor.moveToNext()) {
+                                            int jid = cursor.getInt(cursor.getColumnIndex("jid_row_id"));
+                                            int groupType = cursor.getInt(cursor.getColumnIndex("group_type"));
+                                            int archived = cursor.getInt(cursor.getColumnIndex("archived"));
+                                            int chatLocked = cursor.getInt(cursor.getColumnIndex("chat_lock"));
+                                            if (archived != 0 || (groupType != 0 && groupType != 6) || chatLocked != 0) {
+                                                continue;
+                                            }
+                                            String sql2 = "SELECT * FROM jid WHERE _id == ?";
+                                            Cursor cursor1 = db.rawQuery(sql2, new String[]{String.valueOf(jid)});
+                                            if (cursor1 != null) {
+                                                try {
+                                                    if (!cursor1.moveToFirst()) continue;
+                                                    String server = cursor1.getString(cursor1.getColumnIndex("server"));
+                                                    if ("g.us".equals(server)) {
+                                                        groupCount++;
+                                                    } else {
+                                                        chatCount++;
+                                                    }
+                                                } finally {
+                                                    cursor1.close();
+                                                }
+                                            }
+                                        }
+                                    } finally {
+                                        cursor.close();
+                                    }
+                                }
+
+                                if (tabs.contains(CHATS) && tabInstances.containsKey(CHATS)) {
+                                    Object chatsBadge;
+                                    if (chatCount <= 0) {
+                                        chatsBadge = XposedHelpers.getStaticObjectField(emptyBadgeClass, "A00");
+                                    } else {
+                                        chatsBadge = badgeWrapperConstructor.newInstance(
+                                                badgeItemConstructor.newInstance(chatCount)
+                                        );
+                                    }
+                                    param.args[1] = chatsBadge;
+                                }
+
+                                if (tabs.contains(GROUPS) && tabInstances.containsKey(GROUPS)) {
+                                    Object groupsBadge;
+                                    if (groupCount <= 0) {
+                                        groupsBadge = XposedHelpers.getStaticObjectField(emptyBadgeClass, "A00");
+                                    } else {
+                                        groupsBadge = badgeWrapperConstructor.newInstance(
+                                                badgeItemConstructor.newInstance(groupCount)
+                                        );
+                                    }
+                                    // Invoke on main thread
+                                    final Object finalGroupsBadge = groupsBadge;
+                                    final int groupsIndex = tabs.indexOf(GROUPS);
+                                    android.os.Handler handler = new android.os.Handler(android.os.Looper.getMainLooper());
+                                    handler.post(() -> {
+                                        try {
+                                            XposedBridge.invokeOriginalMethod(
+                                                    param.method,
+                                                    param.thisObject,
+                                                    new Object[]{param.args[0], finalGroupsBadge, groupsIndex}
+                                            );
+                                        } catch (Throwable t) {
+                                            XposedBridge.log("SeparateGroup: Error setting group badge: " + t);
+                                        }
+                                    });
+                                }
+                            } catch (Throwable t) {
+                                XposedBridge.log("SeparateGroup: Error in tab count thread: " + t);
+                            }
+                        }).start();
+                    }
+                }
+            });
+        } catch (Throwable t) {
+            logDebug("hookTabCount error", t);
+        }
+    }
+
+    private void hookTabIcon() {
+        try {
+            Method iconTabMethod = Unobfuscator.loadIconTabMethod(classLoader);
+            logDebug(Unobfuscator.getMethodDescriptor(iconTabMethod));
+            Method menuAddAndroidX = Unobfuscator.loadAddMenuAndroidX(classLoader);
+            logDebug(menuAddAndroidX.toString());
+
+            XposedBridge.hookMethod(iconTabMethod, new XC_MethodHook() {
+                @Override
+                protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
+                    XC_MethodHook.Unhook hooked = XposedBridge.hookMethod(menuAddAndroidX, new XC_MethodHook() {
+                        @Override
+                        protected void afterHookedMethod(MethodHookParam innerParam) throws Throwable {
+                            if (innerParam.args.length > 2 && (int) innerParam.args[1] == GROUPS) {
+                                MenuItem menuItem = (MenuItem) innerParam.getResult();
+                                menuItem.setIcon(
+                                        Utils.getID("home_tab_communities_selector", "drawable")
+                                );
+                            }
+                        }
+                    });
+                    param.setObjectExtra("hooked", hooked);
+                }
+
+                @SuppressLint("ResourceType")
+                @Override
+                protected void afterHookedMethod(MethodHookParam param) throws Throwable {
+                    XC_MethodHook.Unhook hooked = (XC_MethodHook.Unhook) param.getObjectExtra("hooked");
+                    if (hooked != null) {
+                        hooked.unhook();
+                    }
+                }
+            });
+        } catch (Throwable t) {
+            logDebug("hookTabIcon error", t);
+        }
+    }
+
+    @SuppressLint("ResourceType")
+    private void hookTabName() {
+        try {
+            Method tabNameMethod = Unobfuscator.loadTabNameMethod(classLoader);
+            XposedBridge.hookMethod(tabNameMethod, new XC_MethodHook() {
+                @Override
+                protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
+                    int tab = (int) param.args[0];
+                    if (tab == GROUPS) {
+                        param.setResult(UnobfuscatorCache.getInstance().getString("groups"));
+                    }
+                }
+            });
+        } catch (Throwable t) {
+            logDebug("hookTabName error", t);
+        }
+    }
+
+    private void hookTabInstance() {
+        try {
+            Class<?> cFragClass = Unobfuscator.findFirstClassUsingName(
+                    classLoader,
+                    org.luckypray.dexkit.query.enums.StringMatchType.EndsWith,
+                    ".ConversationsFragment"
+            );
+
+            Method getTabMethod = Unobfuscator.loadGetTabMethod(classLoader);
+            logDebug(Unobfuscator.getMethodDescriptor(getTabMethod));
+
+            Method methodTabInstance = Unobfuscator.loadTabFragmentMethod(classLoader);
+            logDebug(Unobfuscator.getMethodDescriptor(methodTabInstance));
+
+            Constructor<?> recreateFragmentMethod = Unobfuscator.loadRecreateFragmentConstructor(classLoader);
+
+            Pattern pattern = Pattern.compile("android:switcher:\\d+:(\\d+)");
+
+            Class<?> fragmentClass = Unobfuscator.loadFragmentClass(classLoader);
+
+            // Hook recreate fragment constructor
+            XposedBridge.hookMethod(recreateFragmentMethod, new XC_MethodHook() {
+                @Override
+                protected void afterHookedMethod(MethodHookParam param) throws Throwable {
+                    String string;
+                    Object arg0 = param.args[0];
+                    if (arg0 instanceof Bundle) {
+                        @SuppressWarnings("deprecation")
+                        Parcelable state = ((Bundle) arg0).getParcelable("state");
+                        if (state == null) return;
+                        string = state.toString();
+                    } else {
+                        string = param.args[2].toString();
+                    }
+                    Matcher matcher = pattern.matcher(string);
+                    if (matcher.find()) {
+                        String group1 = matcher.group(1);
+                        if (group1 == null) return;
+                        int tabId;
+                        try {
+                            tabId = Integer.parseInt(group1);
+                        } catch (NumberFormatException e) {
+                            return;
+                        }
+                        if (tabId == GROUPS || tabId == CHATS) {
+                            Field fragmentField = ReflectionUtils.getFieldByType(
+                                    param.thisObject.getClass(),
+                                    fragmentClass
+                            );
+                            Object convFragment = ReflectionUtils.getObjectField(fragmentField, param.thisObject);
+                            tabInstances.remove(tabId);
+                            if (convFragment != null) {
+                                tabInstances.put(tabId, convFragment);
+                            }
+                        }
+                    }
+                }
+            });
+
+            // Hook getTab method
+            XposedBridge.hookMethod(getTabMethod, new XC_MethodHook() {
+                @Override
+                protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
+                    int index = (int) param.args[0];
+                    if (index < 0 || index >= tabs.size()) return;
+                    int tabId = tabs.get(index);
+                    if (tabId == GROUPS || tabId == CHATS) {
+                        java.lang.reflect.Constructor<?>[] constructors = cFragClass.getDeclaredConstructors();
+                        for (java.lang.reflect.Constructor<?> ctor : constructors) {
+                            if (ctor.getParameterCount() == 0) {
+                                ctor.setAccessible(true);
+                                Object convFragment = ctor.newInstance();
+                                param.setResult(convFragment);
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                @Override
+                protected void afterHookedMethod(MethodHookParam param) throws Throwable {
+                    int index = (int) param.args[0];
+                    if (index < 0 || index >= tabs.size()) return;
+                    int tabId = tabs.get(index);
+                    tabInstances.remove(tabId);
+                    if (param.getResult() != null) {
+                        tabInstances.put(tabId, param.getResult());
+                    }
+                }
+            });
+
+            // Hook tab fragment method (filter chat list)
+            XposedBridge.hookMethod(methodTabInstance, new XC_MethodHook() {
+                @Override
+                protected void afterHookedMethod(MethodHookParam param) throws Throwable {
+                    List<?> chatsList = (List<?>) param.getResult();
+                    List<?> resultList = filterChat(param.thisObject, chatsList);
+                    param.setResult(resultList);
+                }
+            });
+
+            // Hook fab method
+            Method fabintMethod = Unobfuscator.loadFabMethod(classLoader);
+            logDebug(Unobfuscator.getMethodDescriptor(fabintMethod));
+
+            XposedBridge.hookMethod(fabintMethod, new XC_MethodHook() {
+                @Override
+                protected void afterHookedMethod(MethodHookParam param) throws Throwable {
+                    if (tabInstances.get(GROUPS) == param.thisObject) {
+                        param.setResult(GROUPS);
+                    }
+                }
+            });
+
+            // Hook publishResults / getFilters method
+            Method publishResultsMethod = Unobfuscator.loadGetFiltersMethod(classLoader);
+            logDebug(Unobfuscator.getMethodDescriptor(publishResultsMethod));
+
+            final Method finalPublishResultsMethod = publishResultsMethod;
+            XposedBridge.hookMethod(publishResultsMethod, new XC_MethodHook() {
+                @Override
+                protected void beforeHookedMethod(MethodHookParam param) throws Throwable {
+                    Object filters = param.args[1];
+                    List<?> chatsList = (List<?>) XposedHelpers.getObjectField(filters, "values");
+                    Field baseField = ReflectionUtils.getFieldByExtendType(
+                            finalPublishResultsMethod.getDeclaringClass(),
+                            BaseAdapter.class
+                    );
+                    if (baseField == null) return;
+                    Field convField = ReflectionUtils.getFieldByType(baseField.getType(), cFragClass);
+                    Object thiz = convField.get(baseField.get(param.thisObject));
+                    if (thiz == null) return;
+                    List<?> resultList = filterChat(thiz, chatsList);
+                    XposedHelpers.setObjectField(filters, "values", resultList);
+                    XposedHelpers.setIntField(filters, "count", resultList.size());
+                }
+            });
+        } catch (Throwable t) {
+            logDebug("hookTabInstance error", t);
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<?> filterChat(Object thiz, List<?> chatsList) {
+        Object tabChat = tabInstances.get(CHATS);
+        Object tabGroup = tabInstances.get(GROUPS);
+
+        if (tabChat != thiz && tabGroup != thiz) {
+            return chatsList;
+        }
+
+        ArrayListFilter editableChatList = new ArrayListFilter(tabGroup == thiz);
+        editableChatList.addAll((Collection<Object>) chatsList);
+        return editableChatList;
+    }
+
+    private void hookTabList() {
+        try {
+            Method onCreateTabList = Unobfuscator.loadTabListMethod(classLoader);
+            logDebug(Unobfuscator.getMethodDescriptor(onCreateTabList));
+
+            XposedBridge.hookMethod(onCreateTabList, new XC_MethodHook() {
+                @SuppressWarnings("unchecked")
+                @Override
+                protected void afterHookedMethod(MethodHookParam param) throws Throwable {
+                    ArrayList<Integer> resultTabs = (ArrayList<Integer>) param.getResult();
+                    if (resultTabs == null) return;
+                    tabs = resultTabs;
+                    if (!tabs.contains(GROUPS)) {
+                        tabs.add(tabs.isEmpty() ? 0 : 1, GROUPS);
+                    }
+                }
+            });
+        } catch (Throwable t) {
+            logDebug("hookTabList error", t);
+        }
+    }
+
+    /**
+     * A custom ArrayList that filters chat items based on whether they belong to groups or contacts.
+     * Used to separate the chat list into individual chats and group chats.
+     */
+    public static class ArrayListFilter extends ArrayList<Object> {
+
+        private final boolean isGroup;
+
+        public ArrayListFilter(boolean isGroup) {
+            this.isGroup = isGroup;
+        }
+
+        @Override
+        public void add(int index, Object element) {
+            if (checkGroup(element)) {
+                super.add(index, element);
+            }
+        }
+
+        @Override
+        public boolean add(Object element) {
+            if (checkGroup(element)) {
+                return super.add(element);
+            }
+            return true;
+        }
+
+        @Override
+        public boolean addAll(@NonNull Collection<?> c) {
+            for (Object chat : c) {
+                if (checkGroup(chat)) {
+                    super.add(chat);
+                }
+            }
+            return true;
+        }
+
+        private boolean checkGroup(Object chat) {
+            if (chat == null) return true;
+
+            Object jid = null;
+            try {
+                jid = XposedHelpers.getObjectField(chat, "A00");
+            } catch (Throwable ignored) {
+            }
+            if (jid == null) {
+                try {
+                    jid = XposedHelpers.getObjectField(chat, "A01");
+                } catch (Throwable ignored) {
+                }
+            }
+            if (jid == null) return true;
+
+            if (XposedHelpers.findMethodExactIfExists(jid.getClass(), "getServer") != null) {
+                String server = (String) XposedHelpers.callMethod(jid, "getServer");
+                if (server == null) return true;
+                if (isGroup) {
+                    return "broadcast".equals(server) || "g.us".equals(server);
+                } else {
+                    return "s.whatsapp.net".equals(server) || "lid".equals(server);
+                }
+            }
+            return true;
+        }
     }
 }
