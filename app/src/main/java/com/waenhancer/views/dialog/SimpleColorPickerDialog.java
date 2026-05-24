@@ -28,7 +28,7 @@ public class SimpleColorPickerDialog extends AlertDialogWpp {
 
     @Override
     public Dialog create() {
-
+        setFullHeight(true);
         setTitle("Select a Color");
 
         // Configura o layout principal do diálogo
