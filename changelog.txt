@@ -1,4 +1,5 @@
 [Improvements]
+- Restored Separate Groups feature
 - Improved Module Entry tile in Settings Activity for all Languages
 - Improved Call info notification
 
