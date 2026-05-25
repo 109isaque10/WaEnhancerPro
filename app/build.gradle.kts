@@ -17,7 +17,12 @@ kotlin {
     jvmToolchain(17)
 }
 
-
+// ─────────────────────────────────────────────────────────────────────────────
+// Private pro submodule
+// settings.gradle.kts computes this flag by scanning app/src/pro for real files.
+// ─────────────────────────────────────────────────────────────────────────────
+val hasProSources: Boolean = rootProject.extra.has("hasProSources") &&
+    rootProject.extra["hasProSources"] as Boolean
 
 
 android {
@@ -57,6 +62,8 @@ android {
         buildConfigField("String", "GH_PUBLIC_TOKEN", "\"$githubToken\"")
 
         buildConfigField("String", "NOTICES_URL", "\"https://waenhancer.com/notices.json\"")
+        // Expose pro feature availability to app code
+        buildConfigField("boolean", "HAS_PRO_FEATURES", hasProSources.toString())
         multiDexEnabled = true
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
@@ -183,6 +190,21 @@ android {
         generatePalette = true
     }
 
+    // ─────────────────────────────────────────────────────────────────────
+    // Conditionally add the private pro source set
+    // When the submodule is populated, Gradle will compile those sources
+    // as part of the main app — no separate module, no separate APK.
+    // ─────────────────────────────────────────────────────────────────────
+    if (hasProSources) {
+        sourceSets {
+            named("main") {
+                java.srcDirs("src/pro/java", "src/pro/kotlin")
+                res.srcDirs("src/pro/res")
+                assets.srcDirs("src/pro/assets")
+                aidl.srcDirs("src/pro/aidl")
+            }
+        }
+    }
 }
 
 dependencies {
