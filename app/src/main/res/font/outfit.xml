@@ -11,18 +11,18 @@
         app:fontWeight="400" />
 
     <font
-        android:font="@font/outfit_medium"
+        android:font="@font/outfit_regular"
         android:fontStyle="normal"
         android:fontWeight="500"
-        app:font="@font/outfit_medium"
+        app:font="@font/outfit_regular"
         app:fontStyle="normal"
         app:fontWeight="500" />
 
     <font
-        android:font="@font/outfit_semibold"
+        android:font="@font/outfit_bold"
         android:fontStyle="normal"
         android:fontWeight="600"
-        app:font="@font/outfit_semibold"
+        app:font="@font/outfit_bold"
         app:fontStyle="normal"
         app:fontWeight="600" />
 
