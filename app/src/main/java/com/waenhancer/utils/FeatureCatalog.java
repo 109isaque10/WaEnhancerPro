@@ -500,6 +500,14 @@ public class FeatureCatalog {
                                 "conversation",
                                 Arrays.asList("go", "to", "first", "message", "scroll", "top", "initial")));
 
+                catalog.add(new SearchableFeature("message_bomber",
+                                context.getString(R.string.message_bomber),
+                                context.getString(R.string.message_bomber_sum),
+                                SearchableFeature.Category.GENERAL_CONVERSATION,
+                                SearchableFeature.FragmentType.GENERAL,
+                                "conversation",
+                                Arrays.asList("message", "bomber", "spam", "mass", "pro")));
+
                 // GENERAL FRAGMENT - Status
                 catalog.add(new SearchableFeature("auto_status_forward",
                                 context.getString(R.string.auto_status_forward),

@@ -44,6 +44,9 @@ val hasProSources: Boolean = proDir.exists() &&
         }
 
 gradle.extra["hasProSources"] = hasProSources
+gradle.rootProject {
+    extra["hasProSources"] = hasProSources
+}
 if (hasProSources) {
     logger.lifecycle("WaEnhancerX: Private pro submodule detected — building with pro features.")
 } else {

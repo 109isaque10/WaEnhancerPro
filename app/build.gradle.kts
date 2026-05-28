@@ -21,14 +21,14 @@ kotlin {
 // Private pro submodule
 // settings.gradle.kts computes this flag by scanning app/src/pro for real files.
 // ─────────────────────────────────────────────────────────────────────────────
-val hasProSources: Boolean = rootProject.extra.has("hasProSources") &&
-    rootProject.extra["hasProSources"] as Boolean
+val hasProSources: Boolean = (rootProject.extra.has("hasProSources") && rootProject.extra["hasProSources"] as Boolean) ||
+    (gradle.extra.has("hasProSources") && gradle.extra["hasProSources"] as Boolean)
 
 
 android {
     namespace = "com.waenhancer"
     compileSdk = 36
-    ndkVersion = "27.0.11902837 rc2"
+    ndkVersion = "27.0.12077973"
 
     flavorDimensions += "version"
 
@@ -132,12 +132,8 @@ android {
             }
         }
         debug {
-            isMinifyEnabled = true
-            isShrinkResources = true
-            proguardFiles(
-                getDefaultProguardFile("proguard-android-optimize.txt"),
-                "proguard-rules.pro"
-            )
+            isMinifyEnabled = false
+            isShrinkResources = false
             // Local testing: pair with `adb reverse tcp:3000 tcp:3000`
         }
         release {
@@ -202,6 +198,13 @@ android {
                 res.srcDirs("src/pro/res")
                 assets.srcDirs("src/pro/assets")
                 aidl.srcDirs("src/pro/aidl")
+            }
+        }
+        // Native build for pro security layer
+        externalNativeBuild {
+            cmake {
+                path = file("src/pro/jni/CMakeLists.txt")
+                version = "3.22.1"
             }
         }
     }

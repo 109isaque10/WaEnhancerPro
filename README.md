@@ -102,8 +102,16 @@ WaEnhancerX isn't just a fork; it's a **high-performance, native-first evolution
 
 ---
 
-### ⚖️ Credits & Acknowledgements
-WaEnhancerX originally started as a fork of **WaEnhancer** by **Dev4Mod**. I deeply respect and acknowledge the foundational open-source work provided by the original author.
+### ⚖️ Open Source Attribution & Architectural Divergence
+
+WaEnhancerX originally started as a direct fork of **WaEnhancer** by **Dev4Mod**. We deeply respect the foundational work and legacy Xposed hooking concepts created by the original author.
+
+**Why the Repository Was Detached (Architectural Independence):**
+The repository was officially detached from the upstream network to pursue an independent architectural roadmap. At the time, the original project initiated a rapid migration to Kotlin. While Kotlin is an excellent modern standard, staying attached would have caused massive merge conflicts with our ongoing, deep-level Java optimizations.
+
+Detaching allowed us to first stabilize, refactor, and achieve a zero-lag UI entirely on our own terms, without upstream changes breaking our core architecture. This gives WaEnhancerX the freedom to evolve at its own pace, whether that means perfecting the current foundation or transitioning frameworks in the future.
+
+All legacy logic and core methods adapted from Dev4Mod are explicitly attributed here in full compliance with open-source ethics. Today, WaEnhancerX continues to evolve independently as a highly optimized, tracker-free, and stable ecosystem.
 
 *Built for the community.*
 

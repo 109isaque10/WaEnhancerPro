@@ -870,7 +870,20 @@ public class FeatureLoader {
         // Check if lazy loading is enabled
         boolean lazyLoadingEnabled = pref.getBoolean("lazy_feature_loading", true);
 
-        for (var classe : classes) {
+        java.util.List<Class<?>> allFeatureClasses = new java.util.ArrayList<>(Arrays.asList(classes));
+        if (BuildConfig.HAS_PRO_FEATURES) {
+            try {
+                Class<?> proFeatureClass = Class.forName("com.waenhancer.pro.ProFeature");
+                allFeatureClasses.add(proFeatureClass);
+                
+                Class<?> msgBomberClass = Class.forName("com.waenhancer.pro.MessageBomber");
+                allFeatureClasses.add(msgBomberClass);
+            } catch (Exception e) {
+                // Fail silently to prevent string leaks in stacktraces/logs
+            }
+        }
+
+        for (var classe : allFeatureClasses) {
             // Skip lazy features if lazy loading is enabled - they'll load on-demand
             if (lazyLoadingEnabled && FeatureRegistry.isLazyFeature(classe.getSimpleName())) {
                 XposedBridge.log("[FeatureLoader] Skipping " + classe.getSimpleName() + " (lazy loading enabled)");

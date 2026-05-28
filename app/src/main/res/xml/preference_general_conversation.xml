@@ -137,6 +137,12 @@
             app:summary="@string/go_to_first_message_sum"
             app:title="@string/go_to_first_message" />
 
+        <com.waenhancer.preference.ProSwitchPreference
+            app:defaultValue="false"
+            app:key="message_bomber"
+            app:summary="@string/message_bomber_sum"
+            app:title="@string/message_bomber" />
+
     </PreferenceCategory>
 
 </PreferenceScreen>

@@ -24,10 +24,41 @@
 
 -dontwarn *
 
-# Keep our entire module code
--keep class com.waenhancer.** {
-     *;
+# Keep the critical Xposed loading entry point and all its members
+-keep class com.waenhancer.WppXposed { *; }
+
+# ── Pro module: aggressive obfuscation ───────────────────────────────────────
+# Keep only what is strictly needed for reflection (Class.forName + constructor)
+# and JNI (native method signatures must match the C++ side).
+# Everything else in the pro package gets fully obfuscated.
+-keep class com.waenhancer.pro.ProFeature {
+    public <init>(java.lang.ClassLoader, android.content.SharedPreferences);
+    native <methods>;
 }
+
+# Keep the reflective constructors for all Feature plugins loaded dynamically at startup or lazily
+-keep class * extends com.waenhancer.xposed.core.Feature {
+    public <init>(java.lang.ClassLoader, android.content.SharedPreferences);
+}
+
+# Keep critical cross-app target Activities called via ComponentName string from WhatsApp process context
+-keep class com.waenhancer.activities.ChangelogActivity { *; }
+-keep class com.waenhancer.xposed.features.others.EmbeddedSettingsActivity { *; }
+
+# Keep all IPC bridge AIDL interface, stub, and client classes intact to maintain communication stability
+-keep class com.waenhancer.xposed.bridge.** { *; }
+
+# Strip all debug info from pro classes — no source file, no line numbers
+-assumenosideeffects class com.waenhancer.pro.** {
+    void log(...);
+}
+
+# Obfuscate the dictionary for pro classes — use single-char names
+-repackageclasses ''
+-allowaccessmodification
+-overloadaggressively
+
+-renamesourcefileattribute ""
 
 # Keep AndroidX libraries that are often accessed via reflection in Xposed environments
 -keep class androidx.preference.** { *; }
