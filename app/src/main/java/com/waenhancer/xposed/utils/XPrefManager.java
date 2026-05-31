@@ -35,7 +35,11 @@ public class XPrefManager {
             
             return pref;
         } catch (Throwable t) {
-            android.util.Log.e("WaE-XPrefManager", "Failed to initialize XSharedPreferences", t);
+            if (t instanceof ClassNotFoundException || (t.getCause() != null && t.getCause() instanceof ClassNotFoundException)) {
+                android.util.Log.d("WaE-XPrefManager", "XSharedPreferences class not found (standalone app process context, falling back to standard preferences)");
+            } else {
+                android.util.Log.e("WaE-XPrefManager", "Failed to initialize XSharedPreferences", t);
+            }
             xprefsUnavailable = true;
             return null;
         }
