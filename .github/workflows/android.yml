@@ -65,6 +65,7 @@ jobs:
           PRO_DEPLOY_KEY: ${{ secrets.PRO_DEPLOY_KEY }}
         if: ${{ env.PRO_DEPLOY_KEY != '' }}
         run: |
+          git config --global url."git@github.com:".insteadOf "https://github.com/"
           git submodule update --init --recursive app/src/pro
           echo "Pro submodule checked out successfully."
 
