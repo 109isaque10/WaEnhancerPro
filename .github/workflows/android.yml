@@ -67,6 +67,7 @@ jobs:
         run: |
           git config --global url."git@github.com:".insteadOf "https://github.com/"
           git submodule update --init --recursive app/src/pro
+          git config --global --unset url."git@github.com:".insteadOf
           echo "Pro submodule checked out successfully."
 
       - name: Set up JDK 17
