@@ -53,13 +53,17 @@ jobs:
       # open-source variant (hasProSources=false) without errors.
       # ─────────────────────────────────────────────────────────────────
       - name: Setup SSH for private submodule
-        if: ${{ secrets.PRO_DEPLOY_KEY != '' }}
+        env:
+          PRO_DEPLOY_KEY: ${{ secrets.PRO_DEPLOY_KEY }}
+        if: ${{ env.PRO_DEPLOY_KEY != '' }}
         uses: webfactory/ssh-agent@v0.9.0
         with:
           ssh-private-key: ${{ secrets.PRO_DEPLOY_KEY }}
 
       - name: Checkout private pro submodule
-        if: ${{ secrets.PRO_DEPLOY_KEY != '' }}
+        env:
+          PRO_DEPLOY_KEY: ${{ secrets.PRO_DEPLOY_KEY }}
+        if: ${{ env.PRO_DEPLOY_KEY != '' }}
         run: |
           git submodule update --init --recursive app/src/pro
           echo "Pro submodule checked out successfully."
