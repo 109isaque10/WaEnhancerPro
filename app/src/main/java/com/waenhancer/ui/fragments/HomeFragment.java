@@ -502,16 +502,12 @@ public class HomeFragment extends BaseFragment {
             binding.proStatusChip.setText(text);
             
             // Dynamically update chip's background tint and text colors based on status
-            if ("ACTIVE".equalsIgnoreCase(proStatus)) {
-                // Premium light green background with dark green text for Active Pro
-                binding.proStatusChip.setBackgroundTintList(android.content.res.ColorStateList.valueOf(0xFFE8F5E9));
-                binding.proStatusChip.setTextColor(0xFF2E7D32);
-            } else if ("EXPIRED".equalsIgnoreCase(proStatus)) {
+            if ("EXPIRED".equalsIgnoreCase(proStatus)) {
                 // Light red background with dark red text for Expired Pro
                 binding.proStatusChip.setBackgroundTintList(android.content.res.ColorStateList.valueOf(0xFFFFEBEE));
                 binding.proStatusChip.setTextColor(0xFFC62828);
             } else {
-                // Standard default background tint and primary color text for Free status
+                // Standard default background tint and primary color text for Free status and Active/Pro status
                 android.util.TypedValue typedValueContainer = new android.util.TypedValue();
                 android.util.TypedValue typedValuePrimary = new android.util.TypedValue();
                 if (requireContext().getTheme().resolveAttribute(com.google.android.material.R.attr.colorPrimaryContainer, typedValueContainer, true)) {

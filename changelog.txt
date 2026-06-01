@@ -1,3 +1,2 @@
-[Fixes]
-- Fixed MessageBomber, DeleteMessageFile plugin errors
-- Fixed Fragments crash on open (General, Home Screen, Conversation Screen)
+[Added]
+- Added support for WA/WB 2.26.22.xx
