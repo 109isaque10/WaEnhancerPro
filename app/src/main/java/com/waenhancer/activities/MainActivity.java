@@ -280,6 +280,13 @@ public class MainActivity extends BaseActivity {
             binding.btnBattery.setVisibility(android.view.View.GONE);
         }
 
+        // Check if device was unlinked due to stable reversion
+        android.content.SharedPreferences rawPrefs = androidx.preference.PreferenceManager.getDefaultSharedPreferences(this);
+        if (rawPrefs.getBoolean("unlinked_reverted_to_stable", false)) {
+            rawPrefs.edit().putBoolean("unlinked_reverted_to_stable", false).apply();
+            showReversionBottomSheet();
+        }
+
         // Remote notices (cached + rate-limited)
         binding.getRoot().post(() -> NoticeCenter.checkAndShow(this));
     }
@@ -373,5 +380,37 @@ public class MainActivity extends BaseActivity {
                 page.setAlpha(0f);
             }
         }
+    }
+
+    private void showReversionBottomSheet() {
+        try {
+            com.google.android.material.bottomsheet.BottomSheetDialog dialog = new com.google.android.material.bottomsheet.BottomSheetDialog(this);
+            android.view.View view = android.view.LayoutInflater.from(this).inflate(R.layout.bottom_sheet_action, null);
+            dialog.setContentView(view);
+            dialog.setCancelable(true);
+
+            ((com.google.android.material.textview.MaterialTextView) view.findViewById(R.id.bs_title)).setText("Reverted to Stable");
+            ((com.google.android.material.textview.MaterialTextView) view.findViewById(R.id.bs_message)).setText(
+                    "Your device has been unlinked and Pro configurations cleared because you are running the Stable version of the module. Active Pro trial features are only whitelisted on the Beta update channel for now.");
+
+            com.google.android.material.button.MaterialButton joinBtn = view.findViewById(R.id.bs_confirm_btn);
+            joinBtn.setText("Join Beta Channel");
+            joinBtn.setOnClickListener(v -> {
+                dialog.dismiss();
+                Intent intent = new Intent(this, ChangelogActivity.class);
+                intent.putExtra("target_channel", "beta");
+                startActivity(intent);
+            });
+
+            com.google.android.material.button.MaterialButton dismissBtn = view.findViewById(R.id.bs_cancel_btn);
+            dismissBtn.setText("Dismiss");
+            dismissBtn.setOnClickListener(v -> dialog.dismiss());
+
+            android.view.View bottomSheet = dialog.findViewById(com.google.android.material.R.id.design_bottom_sheet);
+            if (bottomSheet != null) {
+                bottomSheet.setBackgroundResource(android.R.color.transparent);
+            }
+            dialog.show();
+        } catch (Exception ignored) {}
     }
 }
