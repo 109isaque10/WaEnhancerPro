@@ -832,7 +832,7 @@ public class AlertDialogWpp {
                     
                     android.graphics.drawable.GradientDrawable posBg = new android.graphics.drawable.GradientDrawable();
                     posBg.setColor(accentColor);
-                    posBg.setCornerRadius(12 * density);
+                    posBg.setCornerRadius(24 * density);
                     
                     android.content.res.ColorStateList posRippleColor = android.content.res.ColorStateList.valueOf(0x22FFFFFF);
                     android.graphics.drawable.RippleDrawable posRipple = new android.graphics.drawable.RippleDrawable(posRippleColor, posBg, null);
@@ -862,7 +862,7 @@ public class AlertDialogWpp {
                     android.graphics.drawable.GradientDrawable negBg = new android.graphics.drawable.GradientDrawable();
                     negBg.setColor(android.graphics.Color.TRANSPARENT);
                     negBg.setStroke((int) (1 * density), secondaryTextColor & 0x44FFFFFF | 0x44000000);
-                    negBg.setCornerRadius(12 * density);
+                    negBg.setCornerRadius(24 * density);
                     
                     android.content.res.ColorStateList negRippleColor = android.content.res.ColorStateList.valueOf(secondaryTextColor & 0x15FFFFFF | 0x15000000);
                     android.graphics.drawable.RippleDrawable negRipple = new android.graphics.drawable.RippleDrawable(negRippleColor, negBg, null);

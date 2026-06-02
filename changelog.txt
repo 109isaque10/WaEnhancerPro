@@ -4,5 +4,10 @@
 - Added Status Splitter [Pro]
 - Added option to make text selectable in Chat Bubbles
 
+[Improvements]
+- Optimized app size & performance
+- Improved some ui elements
+
+
 [Fixes]
 - Fixed Error getting method loadfabMethod: Fab method not found
