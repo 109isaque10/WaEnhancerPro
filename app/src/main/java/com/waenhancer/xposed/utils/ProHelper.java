@@ -1,6 +1,9 @@
 package com.waenhancer.xposed.utils;
 
 import android.content.Context;
+import android.content.Intent;
+import android.text.Html;
+import androidx.annotation.NonNull;
 import androidx.preference.Preference;
 import androidx.preference.PreferenceGroup;
 import androidx.preference.TwoStatePreference;
@@ -93,22 +96,54 @@ public class ProHelper {
             Preference pref = group.getPreference(i);
 
             if (pref instanceof PreferenceGroup) {
+                PreferenceGroup prefGroup = (PreferenceGroup) pref;
+                String activationKey = "pro_activation_link_" + prefGroup.getKey();
+                Preference activationPref = prefGroup.findPreference(activationKey);
+
                 if (isProGroup(pref) && !proActive) {
-                    pref.setEnabled(false);
-                    uncheckTwoStatePreferences((PreferenceGroup) pref);
-                    disableChildrenOfProGroup((PreferenceGroup) pref);
+                    // Category remains enabled, but we disable other children
+                    prefGroup.setEnabled(true);
+                    uncheckTwoStatePreferences(prefGroup);
+                    disableChildrenOfProGroupExceptActivation(prefGroup, activationKey);
+
+                    if (activationPref == null) {
+                        activationPref = new Preference(context);
+                        activationPref.setKey(activationKey);
+                        String titleHtml = "<b><font color='#8B5CF6'>🔑 Tap here to verify license key & unlock</font></b>";
+                        activationPref.setTitle(Html.fromHtml(titleHtml, Html.FROM_HTML_MODE_LEGACY));
+                        activationPref.setSummary("This category is locked. Verify your WaEnhancerX Pro license to unlock all features.");
+                        activationPref.setOrder(-1); // Display at the very top of category
+                        activationPref.setOnPreferenceClickListener(new Preference.OnPreferenceClickListener() {
+                            @Override
+                            public boolean onPreferenceClick(@NonNull Preference preference) {
+                                try {
+                                    Class<?> clazz = Class.forName("com.waenhancer.activities.LicenseActivity");
+                                    Intent intent = new Intent(context, clazz);
+                                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                                    context.startActivity(intent);
+                                } catch (Throwable t) {
+                                    android.widget.Toast.makeText(context, "Pro features are not available.", android.widget.Toast.LENGTH_SHORT).show();
+                                }
+                                return true;
+                            }
+                        });
+                        prefGroup.addPreference(activationPref);
+                    }
                 } else {
+                    if (activationPref != null) {
+                        prefGroup.removePreference(activationPref);
+                    }
                     if (isProGroup(pref) && proActive) {
                         String key = pref.getKey();
                         if ("customize_status_view_category".equals(key)) {
                             String hookClass = getHookStringSafely("customize_status_control_class");
                             if (hookClass == null || hookClass.trim().isEmpty()) {
-                                disableAndUncheckGroupFromServer((PreferenceGroup) pref, "(Disabled by Server)");
+                                disableAndUncheckGroupFromServer(prefGroup, "(Disabled by Server)");
                                 continue;
                             }
                         }
                     }
-                    updatePreferences(context, (PreferenceGroup) pref);
+                    updatePreferences(context, prefGroup);
                 }
             } else {
                 if (isProFeature(pref) && !proActive) {
@@ -143,10 +178,14 @@ public class ProHelper {
         }
     }
 
-    private static void disableChildrenOfProGroup(PreferenceGroup group) {
+    private static void disableChildrenOfProGroupExceptActivation(PreferenceGroup group, String activationKey) {
         if (group == null) return;
         for (int i = 0; i < group.getPreferenceCount(); i++) {
             Preference pref = group.getPreference(i);
+            if (activationKey.equals(pref.getKey())) {
+                pref.setEnabled(true);
+                continue;
+            }
             if (pref.getClass().getName().contains("ProSwitchPreference")) {
                 if (pref instanceof TwoStatePreference) {
                     ((TwoStatePreference) pref).setChecked(false);
@@ -158,7 +197,7 @@ public class ProHelper {
                 }
             }
             if (pref instanceof PreferenceGroup) {
-                disableChildrenOfProGroup((PreferenceGroup) pref);
+                disableChildrenOfProGroupExceptActivation((PreferenceGroup) pref, activationKey);
             }
         }
     }
@@ -244,7 +283,8 @@ public class ProHelper {
                     || key.equals("status_bottom_play_pause_button")
                     || key.equals("add_status_reply_menu_item")
                     || key.equals("status_video_fast_gesture")
-                    || key.equals("status_video_fast_speed");
+                    || key.equals("status_video_fast_speed")
+                    || key.equals("disable_status_swipe_up");
         }
         return false;
     }
@@ -266,7 +306,8 @@ public class ProHelper {
                 || key.equals("status_bottom_play_pause_button")
                 || key.equals("add_status_reply_menu_item")
                 || key.equals("status_video_fast_gesture")
-                || key.equals("status_video_fast_speed")) {
+                || key.equals("status_video_fast_speed")
+                || key.equals("disable_status_swipe_up")) {
             return "customize_status_control_class";
         }
         return null;

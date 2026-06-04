@@ -96,6 +96,12 @@
 
         <rikka.material.preference.MaterialSwitchPreference
             app:defaultValue="false"
+            app:key="disable_status_swipe_up"
+            app:summary="@string/disable_status_swipe_up_sum"
+            app:title="@string/disable_status_swipe_up" />
+
+        <rikka.material.preference.MaterialSwitchPreference
+            app:defaultValue="false"
             app:key="remove_status_quick_reactions"
             app:summary="@string/remove_status_quick_reactions_sum"
             app:title="@string/remove_status_quick_reactions" />

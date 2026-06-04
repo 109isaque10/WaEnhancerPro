@@ -289,6 +289,8 @@
     <string name="customize_status_view_desc">Customize layout, hide bottom tiles/reactions, and control playback speed with gestures</string>
     <string name="remove_status_bottom_tile">Remove bottom visible tile</string>
     <string name="remove_status_bottom_tile_sum">Hides the visible reply bar, but keeps swipe up gesture functional</string>
+    <string name="disable_status_swipe_up">Disable Swipe Up to reply</string>
+    <string name="disable_status_swipe_up_sum">Disables the swipe up gesture that opens the reply bottom sheet in status view screen</string>
     <string name="remove_status_quick_reactions">Remove quick reactions row</string>
     <string name="remove_status_quick_reactions_sum">Remove the quick reactions emoji row on status view</string>
     <string name="remove_status_heart_button">Remove heart button</string>

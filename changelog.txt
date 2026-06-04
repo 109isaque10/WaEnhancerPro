@@ -1,5 +1,5 @@
 [Added]
-- Custom Status UI
+- Customize Status View
     * [Pro] Disable Swipe Up to Reply
 
 

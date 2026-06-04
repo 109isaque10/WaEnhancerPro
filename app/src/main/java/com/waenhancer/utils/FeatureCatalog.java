@@ -597,6 +597,14 @@ public class FeatureCatalog {
                                 null,
                                 Arrays.asList("status", "bottom", "tile", "swipe", "reply", "hide")));
 
+                catalog.add(new SearchableFeature("disable_status_swipe_up",
+                                context.getString(R.string.disable_status_swipe_up),
+                                context.getString(R.string.disable_status_swipe_up_sum),
+                                SearchableFeature.Category.GENERAL,
+                                SearchableFeature.FragmentType.GENERAL,
+                                null,
+                                Arrays.asList("status", "swipe", "up", "reply", "disable", "gesture")));
+
                 catalog.add(new SearchableFeature("remove_status_quick_reactions",
                                 context.getString(R.string.remove_status_quick_reactions),
                                 context.getString(R.string.remove_status_quick_reactions_sum),
