@@ -30,6 +30,8 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
 import io.noties.markwon.Markwon;
+import io.noties.markwon.html.HtmlPlugin;
+import java.util.List;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.Response;
@@ -46,6 +48,7 @@ public class ReleaseDetailsActivity extends BaseActivity {
     private MaterialTextView tvVersionName;
     private MaterialTextView tvReleaseDate;
     private MaterialTextView tvReleaseBody;
+    private LinearLayout changelogItemsContainer;
     private MaterialButton btnDownload;
 
     private String tagName;
@@ -73,9 +76,12 @@ public class ReleaseDetailsActivity extends BaseActivity {
         tvVersionName = findViewById(R.id.tv_version_name);
         tvReleaseDate = findViewById(R.id.tv_release_date);
         tvReleaseBody = findViewById(R.id.tv_release_body);
+        changelogItemsContainer = findViewById(R.id.changelog_items_container);
         btnDownload = findViewById(R.id.btn_download);
 
-        markwon = Markwon.create(this);
+        markwon = Markwon.builder(this)
+                .usePlugin(HtmlPlugin.create())
+                .build();
 
         // Retrieve the tag name from deep link or Intent extra
         Intent intent = getIntent();
@@ -83,7 +89,10 @@ public class ReleaseDetailsActivity extends BaseActivity {
         if (data != null) {
             String path = data.getPath();
             if (path != null && path.startsWith("/releases/")) {
-                tagName = path.substring("/releases/".length());
+                tagName = path.substring("/releases/".length()).trim();
+                if (tagName.endsWith("/")) {
+                    tagName = tagName.substring(0, tagName.length() - 1).trim();
+                }
             }
         }
 
@@ -172,7 +181,65 @@ public class ReleaseDetailsActivity extends BaseActivity {
 
             tvVersionName.setText(tagName);
             tvReleaseDate.setText(formatDate(publishedAt));
-            markwon.setMarkdown(tvReleaseBody, body.trim());
+
+            // Populate Changelog Items like ChangelogActivity does
+            changelogItemsContainer.removeAllViews();
+            List<ParsedCategory> parsedCategories = parseBody(body);
+            if (parsedCategories.isEmpty()) {
+                tvReleaseBody.setVisibility(View.VISIBLE);
+                changelogItemsContainer.setVisibility(View.GONE);
+                markwon.setMarkdown(tvReleaseBody, body.trim());
+            } else {
+                tvReleaseBody.setVisibility(View.GONE);
+                changelogItemsContainer.setVisibility(View.VISIBLE);
+                android.view.LayoutInflater inflater = android.view.LayoutInflater.from(this);
+                for (ParsedCategory category : parsedCategories) {
+                    // 1. Inflate Category Header Row
+                    android.view.View headerRow = inflater.inflate(R.layout.item_changelog_row, changelogItemsContainer, false);
+                    com.google.android.material.textview.MaterialTextView tvCatBadge = headerRow.findViewById(R.id.tv_item_badge);
+                    com.google.android.material.textview.MaterialTextView tvCatText = headerRow.findViewById(R.id.tv_item_text);
+                    
+                    tvCatText.setVisibility(View.GONE);
+                    tvCatBadge.setText(category.name.toUpperCase(java.util.Locale.US));
+                    
+                    // Style the category badge based on category name
+                    android.graphics.drawable.GradientDrawable gd = new android.graphics.drawable.GradientDrawable();
+                    gd.setShape(android.graphics.drawable.GradientDrawable.RECTANGLE);
+                    gd.setCornerRadius(dpToPx(this, 6));
+                    
+                    int bgColor;
+                    if ("added".equalsIgnoreCase(category.name)) {
+                        bgColor = 0xFF10B981; // Emerald Green
+                    } else if ("improvements".equalsIgnoreCase(category.name)) {
+                        bgColor = 0xFF3B82F6; // Vibrant Blue
+                    } else if ("fixes".equalsIgnoreCase(category.name)) {
+                        bgColor = 0xFFEF4444; // Coral Red
+                    } else {
+                        bgColor = 0xFF64748B; // Slate Gray
+                    }
+                    gd.setColor(bgColor);
+                    tvCatBadge.setBackground(gd);
+                    tvCatBadge.setTextColor(0xFFFFFFFF);
+                    
+                    changelogItemsContainer.addView(headerRow);
+                    
+                    // 2. Inflate Category Bullet Point Rows
+                    for (String itemText : category.items) {
+                        android.view.View itemRow = inflater.inflate(R.layout.item_changelog_row, changelogItemsContainer, false);
+                        com.google.android.material.textview.MaterialTextView tvItemBadge = itemRow.findViewById(R.id.tv_item_badge);
+                        com.google.android.material.textview.MaterialTextView tvItemText = itemRow.findViewById(R.id.tv_item_text);
+                        
+                        tvItemBadge.setVisibility(View.GONE);
+                        markwon.setMarkdown(tvItemText, "•  " + itemText);
+                        
+                        android.widget.LinearLayout.LayoutParams lp = (android.widget.LinearLayout.LayoutParams) tvItemText.getLayoutParams();
+                        lp.leftMargin = dpToPx(this, 16);
+                        tvItemText.setLayoutParams(lp);
+                        
+                        changelogItemsContainer.addView(itemRow);
+                    }
+                }
+            }
 
             // Parse assets to find apk
             String downloadUrl = null;
@@ -243,5 +310,79 @@ public class ReleaseDetailsActivity extends BaseActivity {
             tvErrorMessage.setText(message);
         }
         errorLayout.setVisibility(View.VISIBLE);
+    }
+
+    private static class ParsedCategory {
+        final String name;
+        final List<String> items = new java.util.ArrayList<>();
+
+        ParsedCategory(String name) {
+            this.name = name;
+        }
+    }
+
+    private static List<ParsedCategory> parseBody(String body) {
+        List<ParsedCategory> categories = new java.util.ArrayList<>();
+        if (body == null || body.trim().isEmpty()) {
+            return categories;
+        }
+        String[] lines = body.split("\n");
+        ParsedCategory currentCategory = null;
+        for (String line : lines) {
+            line = line.trim();
+            if (line.isEmpty()) {
+                continue;
+            }
+
+            // Check if the line is a category header, e.g., [Added], [Fixes], [Improvements]
+            if (line.startsWith("[") && line.endsWith("]")) {
+                String catName = line.substring(1, line.length() - 1).trim();
+                currentCategory = findOrCreateCategory(categories, catName);
+                continue;
+            }
+
+            String text = line;
+            if (text.startsWith("-") || text.startsWith("*")) {
+                text = text.substring(1).trim();
+            }
+
+            String itemCategoryName = (currentCategory != null) ? currentCategory.name : "Added";
+            if (text.startsWith("[")) {
+                int closeBracket = text.indexOf(']');
+                if (closeBracket > 0) {
+                    itemCategoryName = text.substring(1, closeBracket).trim();
+                    text = text.substring(closeBracket + 1).trim();
+                }
+            }
+
+            if (text.startsWith("-") || text.startsWith("*")) {
+                text = text.substring(1).trim();
+            }
+
+            if (!text.isEmpty()) {
+                ParsedCategory cat = findOrCreateCategory(categories, itemCategoryName);
+                cat.items.add(text);
+            }
+        }
+        return categories;
+    }
+
+    private static ParsedCategory findOrCreateCategory(List<ParsedCategory> categories, String name) {
+        for (ParsedCategory cat : categories) {
+            if (cat.name.equalsIgnoreCase(name)) {
+                return cat;
+            }
+        }
+        ParsedCategory newCat = new ParsedCategory(name);
+        categories.add(newCat);
+        return newCat;
+    }
+
+    private static int dpToPx(android.content.Context context, int dp) {
+        return (int) android.util.TypedValue.applyDimension(
+            android.util.TypedValue.COMPLEX_UNIT_DIP,
+            dp,
+            context.getResources().getDisplayMetrics()
+        );
     }
 }

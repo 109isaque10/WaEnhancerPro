@@ -251,6 +251,7 @@ dependencies {
     compileOnly(libs.lombok)
     annotationProcessor(libs.lombok)
     implementation(libs.markwon.core)
+    implementation(libs.markwon.html)
 
     val composeBom = platform(libs.androidx.compose.bom)
     implementation(composeBom)

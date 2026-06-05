@@ -38,6 +38,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
 import io.noties.markwon.Markwon;
+import io.noties.markwon.html.HtmlPlugin;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.Response;
@@ -257,7 +258,11 @@ public class ChangelogActivity extends BaseActivity {
         @NonNull
         @Override
         public ChangelogViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
-            if (markwon == null) markwon = Markwon.create(parent.getContext());
+            if (markwon == null) {
+                markwon = Markwon.builder(parent.getContext())
+                        .usePlugin(HtmlPlugin.create())
+                        .build();
+            }
             View view = LayoutInflater.from(parent.getContext()).inflate(R.layout.item_changelog_version, parent, false);
             return new ChangelogViewHolder(view, markwon, currentVersion);
         }
@@ -466,7 +471,7 @@ public class ChangelogActivity extends BaseActivity {
                         com.google.android.material.textview.MaterialTextView tvItemText = itemRow.findViewById(R.id.tv_item_text);
                         
                         tvItemBadge.setVisibility(View.GONE);
-                        tvItemText.setText("•  " + itemText);
+                        markwon.setMarkdown(tvItemText, "•  " + itemText);
                         
                         android.widget.LinearLayout.LayoutParams lp = (android.widget.LinearLayout.LayoutParams) tvItemText.getLayoutParams();
                         lp.leftMargin = dpToPx(itemView.getContext(), 16);
