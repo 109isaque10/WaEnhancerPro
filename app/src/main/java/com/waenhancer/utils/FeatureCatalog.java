@@ -577,7 +577,7 @@ public class FeatureCatalog {
                                 context.getString(R.string.auto_status_forward),
                                 context.getString(R.string.auto_status_forward_sum),
                                 SearchableFeature.Category.GENERAL,
-                                SearchableFeature.FragmentType.GENERAL,
+                                SearchableFeature.FragmentType.MEDIA,
                                 null,
                                 Arrays.asList("auto", "status", "forward", "reply")));
 
@@ -585,7 +585,7 @@ public class FeatureCatalog {
                                 context.getString(R.string.auto_status_forward_rules),
                                 null,
                                 SearchableFeature.Category.GENERAL,
-                                SearchableFeature.FragmentType.GENERAL,
+                                SearchableFeature.FragmentType.MEDIA,
                                 null,
                                 Arrays.asList("auto", "status", "rules", "keyword")));
 

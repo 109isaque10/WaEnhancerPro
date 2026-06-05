@@ -173,13 +173,22 @@ public class MainActivity extends BaseActivity {
         String parentKey = intent.getStringExtra("parent_preference");
 
         if (fragmentPosition >= 0 && preferenceKey != null) {
-            // Store the scroll target
-            pendingScrollToPreference = preferenceKey;
-            pendingScrollToFragment = fragmentPosition;
-            pendingParentKey = parentKey;
+            if (binding.viewPager.getCurrentItem() == fragmentPosition) {
+                // Since target page is already selected, onPageSelected won't fire.
+                // Clear any pending scroll variables and scroll immediately.
+                pendingScrollToPreference = null;
+                pendingScrollToFragment = -1;
+                pendingParentKey = null;
+                scrollToPreferenceInCurrentFragment(preferenceKey, parentKey);
+            } else {
+                // Store the scroll target
+                pendingScrollToPreference = preferenceKey;
+                pendingScrollToFragment = fragmentPosition;
+                pendingParentKey = parentKey;
 
-            // Navigate to the fragment (onPageSelected will handle the scroll)
-            binding.viewPager.setCurrentItem(fragmentPosition, false);
+                // Navigate to the fragment (onPageSelected will handle the scroll)
+                binding.viewPager.setCurrentItem(fragmentPosition, false);
+            }
 
             // Clear intent extras
             intent.removeExtra("navigate_to_fragment");
