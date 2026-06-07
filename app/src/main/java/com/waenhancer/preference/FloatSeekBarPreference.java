@@ -131,12 +131,13 @@ public class FloatSeekBarPreference extends Preference {
         slider.setValueFrom(minValue);
         slider.setValueTo(maxValue);
         slider.setStepSize(valueSpacing);
+        newValue = normalizeValue(newValue);
         slider.setValue(newValue);
         slider.setEnabled(isEnabled());
         slider.clearOnChangeListeners();
         slider.clearOnSliderTouchListeners();
 
-        slider.addOnChangeListener((slider, value, fromUser) -> textView.setText(String.format(format, value)));
+        slider.addOnChangeListener((slider, value, fromUser) -> textView.setText(String.format(format, normalizeValue(value))));
         slider.addOnSliderTouchListener(new com.google.android.material.slider.Slider.OnSliderTouchListener() {
             @Override
             public void onStartTrackingTouch(com.google.android.material.slider.Slider slider) {
@@ -144,7 +145,9 @@ public class FloatSeekBarPreference extends Preference {
 
             @Override
             public void onStopTrackingTouch(com.google.android.material.slider.Slider slider) {
-                persistFloat(slider.getValue());
+                float value = normalizeValue(slider.getValue());
+                newValue = value;
+                persistFloat(value);
             }
         });
 
@@ -153,6 +156,7 @@ public class FloatSeekBarPreference extends Preference {
 
     private void bindLegacySeekBar() {
         int maxSteps = Math.max(1, Math.round((maxValue - minValue) / valueSpacing));
+        newValue = normalizeValue(newValue);
         seekBar.setMax(maxSteps);
         seekBar.setProgress(valueToProgress(newValue));
         seekBar.setEnabled(isEnabled());
@@ -168,7 +172,9 @@ public class FloatSeekBarPreference extends Preference {
 
             @Override
             public void onStopTrackingTouch(SeekBar seekBar) {
-                persistFloat(progressToValue(seekBar.getProgress()));
+                float value = normalizeValue(progressToValue(seekBar.getProgress()));
+                newValue = value;
+                persistFloat(value);
             }
         });
 
@@ -181,5 +187,11 @@ public class FloatSeekBarPreference extends Preference {
 
     private float progressToValue(int progress) {
         return minValue + (progress * valueSpacing);
+    }
+
+    private float normalizeValue(float value) {
+        float clamped = Math.max(minValue, Math.min(maxValue, value));
+        if (valueSpacing <= 0F) return clamped;
+        return minValue + (Math.round((clamped - minValue) / valueSpacing) * valueSpacing);
     }
 }

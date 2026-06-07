@@ -106,14 +106,6 @@ public class FeatureCatalog {
                                 "general_home",
                                 Arrays.asList("english", "language")));
 
-                catalog.add(new SearchableFeature("enablelogs",
-                                context.getString(R.string.verbose_logs),
-                                null,
-                                SearchableFeature.Category.GENERAL_HOME,
-                                SearchableFeature.FragmentType.GENERAL,
-                                "general_home",
-                                Arrays.asList("logs", "debug", "verbose")));
-
                 catalog.add(new SearchableFeature("show_hook_toast",
                                 context.getString(R.string.show_hook_toast),
                                 context.getString(R.string.show_hook_toast_sum),
@@ -242,6 +234,46 @@ public class FeatureCatalog {
                                 SearchableFeature.FragmentType.GENERAL,
                                 "homescreen",
                                 Arrays.asList("wa enhancer x", "open", "button", "entry", "settings", "embed", "embedded", "external")));
+
+                catalog.add(new SearchableFeature("floating_bottom_bar",
+                                context.getString(R.string.floating_bottom_bar),
+                                context.getString(R.string.floating_bottom_bar_sum),
+                                SearchableFeature.Category.CUSTOMIZATION,
+                                SearchableFeature.FragmentType.CUSTOMIZATION,
+                                "floating_bottom_bar",
+                                Arrays.asList("floating", "bottom", "bar", "menu", "navigation", "pill", "morph")));
+
+                catalog.add(new SearchableFeature("floating_bottom_bar_scroll_hide",
+                                context.getString(R.string.floating_bottom_bar_scroll_hide),
+                                context.getString(R.string.floating_bottom_bar_scroll_hide_sum),
+                                SearchableFeature.Category.CUSTOMIZATION,
+                                SearchableFeature.FragmentType.CUSTOMIZATION,
+                                "floating_bottom_bar",
+                                Arrays.asList("floating", "bottom", "bar", "scroll", "hide", "animation", "collapse")));
+
+                catalog.add(new SearchableFeature("floating_bottom_bar_glass",
+                                context.getString(R.string.floating_bottom_bar_glass),
+                                context.getString(R.string.floating_bottom_bar_glass_sum),
+                                SearchableFeature.Category.CUSTOMIZATION,
+                                SearchableFeature.FragmentType.CUSTOMIZATION,
+                                "floating_bottom_bar",
+                                Arrays.asList("floating", "bottom", "bar", "glass", "blur", "glassmorphism", "transparent", "frosted")));
+
+                catalog.add(new SearchableFeature("floating_bottom_bar_fill_color",
+                                context.getString(R.string.floating_bottom_bar_fill_color),
+                                null,
+                                SearchableFeature.Category.CUSTOMIZATION,
+                                SearchableFeature.FragmentType.CUSTOMIZATION,
+                                "floating_bottom_bar",
+                                Arrays.asList("floating", "bottom", "bar", "glass", "fill", "color", "tint", "pill")));
+
+                catalog.add(new SearchableFeature("floating_bottom_bar_glass_opacity",
+                                context.getString(R.string.floating_bottom_bar_glass_opacity),
+                                null,
+                                SearchableFeature.Category.CUSTOMIZATION,
+                                SearchableFeature.FragmentType.CUSTOMIZATION,
+                                "floating_bottom_bar",
+                                Arrays.asList("floating", "bottom", "bar", "glass", "opacity", "alpha", "transparency")));
 
                 catalog.add(new SearchableFeature("separategroups",
                                 context.getString(R.string.separate_groups),

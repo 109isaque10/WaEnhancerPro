@@ -153,7 +153,6 @@
     <string name="download_title">הורדה</string>
     <string name="seentick_menu">הצג כפתור בתפריט 3 נקודות</string>
     <string name="seentick_screen">הצג כפתור במסך</string>
-    <string name="verbose_logs">הפעל יומן מפורט עבור Debugger (אם יש באג, אז המפתח ידע לפתור אותו ע\"י הפעלת הפיצ\'ר הזה)</string>
     <string name="phone_call">שיחת טלפון</string>
     <string name="whatsapp_call">שיחת ווצאפ</string>
     <string name="home_screen">מסך הבית</string>

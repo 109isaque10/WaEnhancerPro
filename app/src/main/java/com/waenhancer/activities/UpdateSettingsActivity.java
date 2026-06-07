@@ -11,7 +11,7 @@ import com.google.android.material.appbar.MaterialToolbar;
 import com.google.android.material.materialswitch.MaterialSwitch;
 import com.waenhancer.R;
 import com.waenhancer.activities.base.BaseActivity;
-import com.waenhancer.utils.LogManager;
+import com.waenhancer.utils.RootUtils;
 
 public class UpdateSettingsActivity extends BaseActivity {
 
@@ -38,7 +38,7 @@ public class UpdateSettingsActivity extends BaseActivity {
         switchRoot.setOnCheckedChangeListener((buttonView, isChecked) -> {
             if (isChecked) {
                 new Thread(() -> {
-                    boolean hasRoot = LogManager.hasRootAccess();
+                    boolean hasRoot = RootUtils.hasRootAccess();
                     runOnUiThread(() -> {
                         if (hasRoot) {
                             prefs.edit().putBoolean(PREF_DOWNGRADES, true).apply();

@@ -56,18 +56,6 @@ public class HookProvider extends ContentProvider {
             if (context == null) {
                 return null;
             }
-            if ("add_log".equals(method) && extras != null) {
-                if (!prefs.getBoolean("logging_enabled", false)) {
-                    return Bundle.EMPTY;
-                }
-                String pkg = extras.getString("package");
-                String msg = extras.getString("message");
-                if (pkg != null && msg != null) {
-                    com.waenhancer.utils.LogManager.addLog(context, pkg, msg);
-                }
-                return Bundle.EMPTY;
-            }
-
             if ("record_event".equals(method) && extras != null) {
                 if (!prefs.getBoolean("enable_crash_analytics", false)) {
                     return Bundle.EMPTY;

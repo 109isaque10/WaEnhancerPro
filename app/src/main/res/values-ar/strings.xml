@@ -152,7 +152,6 @@
     <string name="download_title">تنزيل</string>
     <string name="seentick_menu">إظهار الزر في قائمة 3 نِقَاط</string>
     <string name="seentick_screen">إظهار الأزرار في الشاشة</string>
-    <string name="verbose_logs">تمكين السجلات المطوّلة لمصحح الأخطاء</string>
     <string name="phone_call">مكالمة هاتفية</string>
     <string name="whatsapp_call">مكالمة واتساب</string>
     <string name="home_screen">الشاشة الرئيسية</string>

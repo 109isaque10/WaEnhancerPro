@@ -28,7 +28,7 @@
 
         <Preference
             app:dependency="tasker"
-            app:icon="@drawable/ic_logs"
+            app:icon="@drawable/ic_round_bug_report_24"
             app:key="tasker_history"
             app:summary="View a log of recent automation events and their status"
             app:title="Automation History" />

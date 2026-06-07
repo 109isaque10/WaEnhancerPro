@@ -111,18 +111,6 @@ public class DeletedMessagesProvider extends ContentProvider {
             return result;
         }
 
-        if ("add_log".equals(method) && extras != null) {
-            if (!prefs.getBoolean("logging_enabled", false)) {
-                return android.os.Bundle.EMPTY;
-            }
-            String pkg = extras.getString("package");
-            String msg = extras.getString("message");
-            if (pkg != null && msg != null) {
-                com.waenhancer.utils.LogManager.addLog(context, pkg, msg);
-            }
-            return android.os.Bundle.EMPTY;
-        }
-
         if ("log_tasker_event".equals(method) && extras != null) {
             String type = extras.getString("type");
             String targetNumber = extras.getString("targetNumber");

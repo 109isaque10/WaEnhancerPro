@@ -152,7 +152,6 @@
     <string name="download_title">Télécharger</string>
     <string name="seentick_menu">Afficher le bouton dans le menu à 3 points</string>
     <string name="seentick_screen">Afficher le bouton à l\'écran</string>
-    <string name="verbose_logs">Activer les journaux détaillés pour le débogueur</string>
     <string name="phone_call">Coup de fil</string>
     <string name="whatsapp_call">Appel WhatsApp</string>
     <string name="home_screen">Écran d\'accueil</string>

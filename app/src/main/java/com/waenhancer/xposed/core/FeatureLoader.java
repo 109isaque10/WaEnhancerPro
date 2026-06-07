@@ -48,6 +48,7 @@ import com.waenhancer.xposed.features.customization.CustomThemeV2;
 import com.waenhancer.xposed.features.customization.CustomTime;
 import com.waenhancer.xposed.features.customization.CustomToolbar;
 import com.waenhancer.xposed.features.customization.CustomView;
+import com.waenhancer.xposed.features.customization.FloatingBottomBar;
 import com.waenhancer.xposed.features.customization.HideSeenView;
 import com.waenhancer.xposed.features.customization.HideTabs;
 import com.waenhancer.xposed.features.customization.SeparateGroup;
@@ -202,9 +203,8 @@ public class FeatureLoader {
 
     public static void start(@NonNull ClassLoader loader, @NonNull android.content.SharedPreferences pref, String sourceDir) {
         hostClassLoader = loader;
-        Feature.DEBUG = pref.getBoolean("enablelogs", true);
-        // Perf logs are opt-in because hooks are hot-path
-        PerfLogger.setEnabled(pref.getBoolean("enable_perf_logs", false));
+        Feature.DEBUG = false;
+        PerfLogger.setEnabled(false);
         Utils.DEBUG = Feature.DEBUG;
         Utils.xprefs = pref;
 
@@ -417,8 +417,8 @@ public class FeatureLoader {
                     
                     // Update global references
                     Utils.xprefs = providerPrefs;
-                    Feature.DEBUG = providerPrefs.getBoolean("enablelogs", true);
-                    PerfLogger.setEnabled(providerPrefs.getBoolean("enable_perf_logs", false));
+                    Feature.DEBUG = false;
+                    PerfLogger.setEnabled(false);
                     Utils.DEBUG = Feature.DEBUG;
                 }
             }
@@ -863,6 +863,7 @@ public class FeatureLoader {
                 TagMessage.class,
                 HideTabs.class,
                 SeparateGroup.class,
+                FloatingBottomBar.class,
                 IGStatus.class,
                 LiteMode.class,
                 MediaQuality.class,

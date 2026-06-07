@@ -1,12 +1,5 @@
 [Added]
-Added support for WA/WB 2.26.23.xx
+- Added WhatsApp Floating Bottom Navigation
 
 [Improvements]
-- Include one-time db optimization for better performance (Dialog will show only once)
 - Module's ui Improvements
-
-[Fixes]
-- Fixed sending file as voice note
-- Fixed Hide Blue Ticks
-- Fixed Hide Typing & Recording Voice
-- Fixed Group/Chats Counter when Separate Groups is Enabled

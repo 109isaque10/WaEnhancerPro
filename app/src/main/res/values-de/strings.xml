@@ -152,7 +152,6 @@
     <string name="download_title">Herunterladen</string>
     <string name="seentick_menu">Zeige Schaltfläche im 3-Punkt-Menü</string>
     <string name="seentick_screen">Schaltfläche im Bildschirm anzeigen</string>
-    <string name="verbose_logs">Ausführliche Protokolle für Debugger aktivieren</string>
     <string name="phone_call">Telefon</string>
     <string name="whatsapp_call">WhatsApp</string>
     <string name="home_screen">System</string>

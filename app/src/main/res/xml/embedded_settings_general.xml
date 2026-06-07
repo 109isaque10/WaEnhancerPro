@@ -48,11 +48,6 @@
 
         <rikka.material.preference.MaterialSwitchPreference
             app:defaultValue="true"
-            app:key="enablelogs"
-            app:title="@string/verbose_logs" />
-
-        <rikka.material.preference.MaterialSwitchPreference
-            app:defaultValue="true"
             app:key="show_hook_toast"
             app:summary="@string/show_hook_toast_sum"
             app:title="@string/show_hook_toast" />

@@ -152,7 +152,6 @@
     <string name="download_title">İndir</string>
     <string name="seentick_menu">3 nokta menüsünde düğmeyi göster</string>
     <string name="seentick_screen">Ekranda düğmeyi göster</string>
-    <string name="verbose_logs">Hata Ayıklayıcı için ayrıntılı günlükleri etkinleştir</string>
     <string name="phone_call">Telefon araması</string>
     <string name="whatsapp_call">WhatsApp araması</string>
     <string name="home_screen">Ana ekran</string>

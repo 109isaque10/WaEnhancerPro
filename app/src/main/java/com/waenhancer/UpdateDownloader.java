@@ -138,16 +138,16 @@ public class UpdateDownloader {
             
             // Copy to /data/local/tmp first to ensure pm can read it
             String copyCmd = "cp \"" + apkPath + "\" " + tmpPath + " && chmod 666 " + tmpPath;
-            com.waenhancer.utils.LogManager.runRootCommand(copyCmd);
+            com.waenhancer.utils.RootUtils.runRootCommand(copyCmd);
 
             // -r: replace existing application
             // -d: allow version code downgrade
             // --user 0: install for owner (common on most devices)
             String cmd = "pm install -r -d --user 0 " + tmpPath;
-            String result = com.waenhancer.utils.LogManager.runRootCommand(cmd);
+            String result = com.waenhancer.utils.RootUtils.runRootCommand(cmd);
             
             // Cleanup
-            com.waenhancer.utils.LogManager.runRootCommand("rm " + tmpPath);
+            com.waenhancer.utils.RootUtils.runRootCommand("rm " + tmpPath);
 
             boolean success = result != null && (result.toLowerCase().contains("success") || result.toLowerCase().contains("pkg:"));
             

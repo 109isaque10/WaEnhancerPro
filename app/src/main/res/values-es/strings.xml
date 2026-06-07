@@ -152,7 +152,6 @@
     <string name="download_title">Descargas</string>
     <string name="seentick_menu">Mostrar botón en menú de 3 puntos</string>
     <string name="seentick_screen">Mostrar botón en pantalla</string>
-    <string name="verbose_logs">Habilitar registros detallados para el depurador</string>
     <string name="phone_call">Llamada Telefónica</string>
     <string name="whatsapp_call">Llamada de WhatsApp</string>
     <string name="home_screen">Pantalla de Inicio</string>

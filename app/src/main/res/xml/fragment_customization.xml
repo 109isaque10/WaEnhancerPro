@@ -199,6 +199,46 @@
 
     <PreferenceCategory
         app:iconSpaceReserved="false"
+        app:title="@string/floating_bottom_bar">
+
+        <rikka.material.preference.MaterialSwitchPreference
+            app:key="floating_bottom_bar"
+            app:summary="@string/floating_bottom_bar_sum"
+            app:title="@string/floating_bottom_bar" />
+
+        <rikka.material.preference.MaterialSwitchPreference
+            app:dependency="floating_bottom_bar"
+            app:key="floating_bottom_bar_scroll_hide"
+            app:summary="@string/floating_bottom_bar_scroll_hide_sum"
+            app:title="@string/floating_bottom_bar_scroll_hide" />
+
+        <rikka.material.preference.MaterialSwitchPreference
+            app:dependency="floating_bottom_bar"
+            app:key="floating_bottom_bar_glass"
+            app:summary="@string/floating_bottom_bar_glass_sum"
+            app:title="@string/floating_bottom_bar_glass" />
+
+        <com.jaredrummler.android.colorpicker.ColorPreferenceCompat
+            app:cpv_showAlphaSlider="false"
+            app:dependency="floating_bottom_bar_glass"
+            app:key="floating_bottom_bar_fill_color"
+            app:summary="@string/default_color"
+            app:title="@string/floating_bottom_bar_fill_color" />
+
+        <com.waenhancer.preference.FloatSeekBarPreference
+            app:defaultValue="35"
+            app:dependency="floating_bottom_bar_glass"
+            app:format="%.0f%%"
+            app:key="floating_bottom_bar_glass_opacity"
+            app:maxValue="100"
+            app:minValue="10"
+            app:title="@string/floating_bottom_bar_glass_opacity"
+            app:valueSpacing="5" />
+
+    </PreferenceCategory>
+
+    <PreferenceCategory
+        app:iconSpaceReserved="false"
         app:title="@string/status">
 
         <rikka.material.preference.MaterialSwitchPreference

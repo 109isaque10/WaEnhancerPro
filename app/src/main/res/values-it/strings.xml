@@ -152,7 +152,6 @@
     <string name="download_title">Download</string>
     <string name="seentick_menu">Mostra pulsante nel menù a 3 puntini</string>
     <string name="seentick_screen">Mostra pulsante nella schermata</string>
-    <string name="verbose_logs">Abilita registri dettagliati per il debug</string>
     <string name="phone_call">Chiamata</string>
     <string name="whatsapp_call">Chiamata WhatsApp</string>
     <string name="home_screen">Schermata Home</string>

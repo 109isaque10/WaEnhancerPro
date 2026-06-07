@@ -152,7 +152,6 @@
     <string name="download_title">Загрузка</string>
     <string name="seentick_menu">Показать кнопку в 3-х точечном меню</string>
     <string name="seentick_screen">Показывать кнопки на экране</string>
-    <string name="verbose_logs">Включить подробный журнал отладчика</string>
     <string name="phone_call">Телефонный звонок</string>
     <string name="whatsapp_call">Whatsapp звонок</string>
     <string name="home_screen">Главный экран</string>

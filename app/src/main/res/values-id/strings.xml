@@ -159,7 +159,6 @@ Harap gunakan versi WhatsApp yang didukung!</string>
     <string name="download_title">Unduhan</string>
     <string name="seentick_menu">Tampilkan tombol di menu</string>
     <string name="seentick_screen">Tampilkan tombol di layar</string>
-    <string name="verbose_logs">Aktifkan Log Verbose untuk Debugger</string>
     <string name="phone_call">Panggilan Telepon</string>
     <string name="whatsapp_call">Panggilan WhatsApp</string>
     <string name="home_screen">Layar Beranda</string>

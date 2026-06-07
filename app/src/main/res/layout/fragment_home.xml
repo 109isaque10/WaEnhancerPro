@@ -175,20 +175,6 @@
 
                         </LinearLayout>
 
-                        <!-- Logs Button (Top Right) -->
-                        <com.google.android.material.button.MaterialButton
-                            android:id="@+id/btnLogs"
-                            style="@style/Widget.Material3.Button.IconButton"
-                            android:layout_width="48dp"
-                            android:layout_height="48dp"
-                            android:layout_alignParentEnd="true"
-                            android:layout_alignParentTop="true"
-                            android:layout_margin="12dp"
-                            android:visibility="gone"
-                            app:icon="@drawable/ic_logs"
-                            app:iconSize="24dp"
-                            app:iconTint="?attr/colorOnSurfaceVariant" />
-
                         <!-- Pro Status Floating Chip (Top Right Corner) -->
                         <com.google.android.material.textview.MaterialTextView
                             android:id="@+id/pro_status_chip"

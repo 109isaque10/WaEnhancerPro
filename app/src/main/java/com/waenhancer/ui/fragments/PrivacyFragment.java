@@ -236,7 +236,7 @@ public class PrivacyFragment extends BasePreferenceFragment {
         } catch (Throwable t) {
             android.util.Log.d("PrivacyFragment", "Failed to read via bridge: " + t.getMessage());
         }
-        return com.waenhancer.utils.LogManager.runRootCommand("cat " + path);
+        return com.waenhancer.utils.RootUtils.runRootCommand("cat " + path);
     }
 
     private List<ContactPrivacyInfo> getCustomPrivacyContacts() {
@@ -501,7 +501,7 @@ public class PrivacyFragment extends BasePreferenceFragment {
             }
 
             String cmd = "cat " + tempFile.getAbsolutePath() + " > " + info.path;
-            com.waenhancer.utils.LogManager.runRootCommand(cmd);
+            com.waenhancer.utils.RootUtils.runRootCommand(cmd);
 
             tempFile.delete();
 

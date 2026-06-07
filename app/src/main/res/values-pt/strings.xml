@@ -152,7 +152,6 @@
     <string name="download_title">Downloads</string>
     <string name="seentick_menu">Mostrar botão no menu de 3 pontos</string>
     <string name="seentick_screen">Mostrar botões na tela</string>
-    <string name="verbose_logs">Ativar logs detalhados para o depurador</string>
     <string name="phone_call">Chamada telefônica</string>
     <string name="whatsapp_call">Chamada do Whatsapp</string>
     <string name="home_screen">Tela inicial</string>
