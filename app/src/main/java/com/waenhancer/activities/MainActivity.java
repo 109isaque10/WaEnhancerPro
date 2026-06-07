@@ -32,6 +32,13 @@ import com.waenhancer.utils.FilePicker;
 
 import java.io.File;
 
+import android.view.View;
+import android.view.ViewGroup;
+import android.graphics.drawable.Drawable;
+import eightbitlab.com.blurview.BlurAlgorithm;
+import eightbitlab.com.blurview.RenderEffectBlur;
+import eightbitlab.com.blurview.RenderScriptBlur;
+
 public class MainActivity extends BaseActivity {
 
     private ActivityMainBinding binding;
@@ -40,6 +47,24 @@ public class MainActivity extends BaseActivity {
     private int pendingScrollToFragment = -1;
     private String pendingParentKey = null;
 
+    private void setupBottomBarBlur() {
+        float radius = 15f;
+        View decorView = getWindow().getDecorView();
+        ViewGroup rootView = decorView.findViewById(android.R.id.content);
+        Drawable windowBackground = decorView.getBackground();
+
+        BlurAlgorithm algorithm;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            algorithm = new RenderEffectBlur();
+        } else {
+            algorithm = new RenderScriptBlur(this);
+        }
+
+        binding.blurView.setupWith(rootView, algorithm)
+                .setFrameClearDrawable(windowBackground)
+                .setBlurRadius(radius);
+    }
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         App.changeLanguage(this);
@@ -47,6 +72,8 @@ public class MainActivity extends BaseActivity {
 
         binding = ActivityMainBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
+
+        setupBottomBarBlur();
 
         setSupportActionBar(binding.toolbar);
 

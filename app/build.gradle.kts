@@ -227,6 +227,7 @@ android {
 
 
 dependencies {
+    implementation(libs.blurview)
     implementation(libs.colorpicker)
     implementation(libs.dexkit)
     implementation(libs.flatbuffers)

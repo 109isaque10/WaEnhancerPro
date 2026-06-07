@@ -98,9 +98,9 @@
     <color name="text_secondary">#49454F</color>
 
     <!-- Glassmorphic Colors -->
-    <color name="glass_background_light">#D6FFFFFF</color> <!-- ~84% transparent white -->
+    <color name="glass_background_light">#73FFFFFF</color> <!-- ~45% transparent white -->
     <color name="glass_stroke_light">#40000000</color>     <!-- Subtle 25% black border for light theme contrast -->
-    <color name="glass_background_dark">#B3121518</color>  <!-- ~70% transparent dark grey -->
+    <color name="glass_background_dark">#4D121518</color>  <!-- ~30% transparent dark grey -->
     <color name="glass_stroke_dark">#26FFFFFF</color>      <!-- Subtle 15% white border for dark theme edge highlight -->
 
 </resources>

@@ -18,8 +18,10 @@ markwon = "4.6.2"
 compose-bom = "2025.02.00"
 google-services = "4.4.2"
 firebase-crashlytics-plugin = "3.0.2"
+blurview = "version-2.0.6"
 
 [libraries]
+blurview = { module = "com.github.Dimezis:BlurView", version.ref = "blurview" }
 androidx-documentfile = { module = "androidx.documentfile:documentfile", version.ref = "documentfile" }
 arscblamer = { module = "com.github.DavidArsene:arscblamer", version.ref = "arscblamer" }
 bcpkix-jdk18on = { module = "org.bouncycastle:bcpkix-jdk18on", version.ref = "bcpkix-jdk18on" }

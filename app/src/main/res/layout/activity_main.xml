@@ -99,20 +99,28 @@
         android:layout_marginBottom="16dp"
         app:cardCornerRadius="28dp"
         app:cardElevation="6dp"
-        app:cardBackgroundColor="?attr/glassCardBackgroundColor"
+        app:cardBackgroundColor="@android:color/transparent"
         app:strokeColor="?attr/glassCardStrokeColor"
         app:strokeWidth="1dp"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent">
 
-        <com.google.android.material.bottomnavigation.BottomNavigationView
-            android:id="@+id/nav_view"
-            style="@style/FloatingBottomNavStyle"
+        <eightbitlab.com.blurview.BlurView
+            android:id="@+id/blur_view"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:background="@android:color/transparent"
-            app:menu="@menu/bottom_nav_menu" />
+            app:blurOverlayColor="?attr/glassCardBackgroundColor">
+
+            <com.google.android.material.bottomnavigation.BottomNavigationView
+                android:id="@+id/nav_view"
+                style="@style/FloatingBottomNavStyle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:background="@android:color/transparent"
+                app:menu="@menu/bottom_nav_menu" />
+
+        </eightbitlab.com.blurview.BlurView>
 
     </com.google.android.material.card.MaterialCardView>
 
