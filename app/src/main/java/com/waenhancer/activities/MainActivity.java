@@ -39,6 +39,12 @@ import eightbitlab.com.blurview.BlurAlgorithm;
 import eightbitlab.com.blurview.RenderEffectBlur;
 import eightbitlab.com.blurview.RenderScriptBlur;
 
+import androidx.annotation.Nullable;
+import androidx.fragment.app.FragmentManager;
+import androidx.recyclerview.widget.RecyclerView;
+import android.view.animation.AccelerateInterpolator;
+import android.view.animation.OvershootInterpolator;
+
 public class MainActivity extends BaseActivity {
 
     private ActivityMainBinding binding;
@@ -46,6 +52,68 @@ public class MainActivity extends BaseActivity {
     private String pendingScrollToPreference = null;
     private int pendingScrollToFragment = -1;
     private String pendingParentKey = null;
+
+    private boolean isBottomBarHidden = false;
+
+    private void animateBottomBar(boolean hide) {
+        if (isBottomBarHidden == hide) return;
+        isBottomBarHidden = hide;
+
+        float translationY = 0f;
+        if (hide) {
+            int height = binding.navViewContainer.getHeight();
+            float margin = 0f;
+            if (binding.navViewContainer.getLayoutParams() instanceof ViewGroup.MarginLayoutParams) {
+                margin = ((ViewGroup.MarginLayoutParams) binding.navViewContainer.getLayoutParams()).bottomMargin;
+            }
+            translationY = height > 0 ? (height + margin + 100f) : 350f;
+        }
+
+        binding.navViewContainer.animate()
+                .translationY(translationY)
+                .setDuration(400)
+                .setInterpolator(hide 
+                        ? new AccelerateInterpolator(1.5f) 
+                        : new OvershootInterpolator(1.1f))
+                .start();
+    }
+
+    private final FragmentManager.FragmentLifecycleCallbacks fragmentLifecycleCallbacks =
+            new FragmentManager.FragmentLifecycleCallbacks() {
+                @Override
+                public void onFragmentViewCreated(@NonNull FragmentManager fm,
+                                                  @NonNull Fragment f,
+                                                  @NonNull View v,
+                                                  @Nullable Bundle savedInstanceState) {
+                    super.onFragmentViewCreated(fm, f, v, savedInstanceState);
+                    setupScrollListenerForView(v);
+                }
+            };
+
+    private void setupScrollListenerForView(View view) {
+        if (view instanceof RecyclerView) {
+            attachScrollListener((RecyclerView) view);
+        } else if (view instanceof ViewGroup) {
+            ViewGroup viewGroup = (ViewGroup) view;
+            for (int i = 0; i < viewGroup.getChildCount(); i++) {
+                setupScrollListenerForView(viewGroup.getChildAt(i));
+            }
+        }
+    }
+
+    private void attachScrollListener(RecyclerView recyclerView) {
+        recyclerView.addOnScrollListener(new RecyclerView.OnScrollListener() {
+            @Override
+            public void onScrolled(@NonNull RecyclerView recyclerView, int dx, int dy) {
+                super.onScrolled(recyclerView, dx, dy);
+                if (dy > 15) {
+                    animateBottomBar(true);
+                } else if (dy < -15) {
+                    animateBottomBar(false);
+                }
+            }
+        });
+    }
 
     private void setupBottomBarBlur() {
         float radius = 15f;
@@ -66,6 +134,12 @@ public class MainActivity extends BaseActivity {
     }
 
     @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        getSupportFragmentManager().unregisterFragmentLifecycleCallbacks(fragmentLifecycleCallbacks);
+    }
+
+    @Override
     protected void onCreate(Bundle savedInstanceState) {
         App.changeLanguage(this);
         super.onCreate(savedInstanceState);
@@ -74,6 +148,8 @@ public class MainActivity extends BaseActivity {
         setContentView(binding.getRoot());
 
         setupBottomBarBlur();
+
+        getSupportFragmentManager().registerFragmentLifecycleCallbacks(fragmentLifecycleCallbacks, true);
 
         setSupportActionBar(binding.toolbar);
 
