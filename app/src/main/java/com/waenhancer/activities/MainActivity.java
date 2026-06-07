@@ -42,6 +42,7 @@ import eightbitlab.com.blurview.RenderScriptBlur;
 import androidx.annotation.Nullable;
 import androidx.fragment.app.FragmentManager;
 import androidx.recyclerview.widget.RecyclerView;
+import androidx.core.widget.NestedScrollView;
 import android.view.animation.AccelerateInterpolator;
 import android.view.animation.OvershootInterpolator;
 
@@ -93,6 +94,8 @@ public class MainActivity extends BaseActivity {
     private void setupScrollListenerForView(View view) {
         if (view instanceof RecyclerView) {
             attachScrollListener((RecyclerView) view);
+        } else if (view instanceof NestedScrollView) {
+            attachNestedScrollListener((NestedScrollView) view);
         } else if (view instanceof ViewGroup) {
             ViewGroup viewGroup = (ViewGroup) view;
             for (int i = 0; i < viewGroup.getChildCount(); i++) {
@@ -106,6 +109,20 @@ public class MainActivity extends BaseActivity {
             @Override
             public void onScrolled(@NonNull RecyclerView recyclerView, int dx, int dy) {
                 super.onScrolled(recyclerView, dx, dy);
+                if (dy > 15) {
+                    animateBottomBar(true);
+                } else if (dy < -15) {
+                    animateBottomBar(false);
+                }
+            }
+        });
+    }
+
+    private void attachNestedScrollListener(NestedScrollView nestedScrollView) {
+        nestedScrollView.setOnScrollChangeListener(new NestedScrollView.OnScrollChangeListener() {
+            @Override
+            public void onScrollChange(@NonNull NestedScrollView v, int scrollX, int scrollY, int oldScrollX, int oldScrollY) {
+                int dy = scrollY - oldScrollY;
                 if (dy > 15) {
                     animateBottomBar(true);
                 } else if (dy < -15) {
