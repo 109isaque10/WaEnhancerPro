@@ -504,6 +504,7 @@
     <string name="floating_bottom_bar_glass_sum">Apply a translucent blurred glass effect to the bottom pill bar</string>
     <string name="floating_bottom_bar_fill_color">Pill Fill Color</string>
     <string name="floating_bottom_bar_glass_opacity">Glass Opacity</string>
+    <string name="floating_bottom_bar_pill_design">Pill Design</string>
     <string name="download_not_available">Please wait until it is fully downloaded in WhatsApp before trying again.</string>
     <string name="call_recording_title">Call Recording</string>
     <string name="call_recording_enable">Enable Call Recording</string>

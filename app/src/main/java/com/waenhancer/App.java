@@ -59,24 +59,24 @@ public class App extends Application {
         super.onCreate();
         instance = this;
         
-        // Initialize Firebase manually only in the standalone process to prevent SecurityException in host processes
-        // Synchronous initialization is safe here because FirebaseInitProvider is removed in the Manifest.
-        if (Application.getProcessName().equals(BuildConfig.APPLICATION_ID) && !BuildConfig.DEBUG) {
-            try {
-                boolean enableCrashAnalytics = PreferenceManager.getDefaultSharedPreferences(this).getBoolean("enable_crash_analytics", false);
-                if (enableCrashAnalytics) {
-                    Class<?> firebaseAppClass = Class.forName("com.google.firebase.FirebaseApp");
-                    firebaseAppClass.getMethod("initializeApp", Context.class).invoke(null, App.this);
-                    
-                    Class<?> firebaseAnalyticsClass = Class.forName("com.google.firebase.analytics.FirebaseAnalytics");
-                    Object analyticsInstance = firebaseAnalyticsClass.getMethod("getInstance", Context.class).invoke(null, App.this);
-                    firebaseAnalyticsClass.getMethod("setAnalyticsCollectionEnabled", boolean.class).invoke(analyticsInstance, true);
-                    
-                    Class<?> firebaseCrashlyticsClass = Class.forName("com.google.firebase.crashlytics.FirebaseCrashlytics");
-                    Object crashlyticsInstance = firebaseCrashlyticsClass.getMethod("getInstance").invoke(null);
-                    firebaseCrashlyticsClass.getMethod("setCrashlyticsCollectionEnabled", boolean.class).invoke(crashlyticsInstance, true);
+        if (Application.getProcessName().equals(BuildConfig.APPLICATION_ID)) {
+            if (!BuildConfig.DEBUG) {
+                try {
+                    boolean enableCrashAnalytics = PreferenceManager.getDefaultSharedPreferences(this).getBoolean("enable_crash_analytics", false);
+                    if (enableCrashAnalytics) {
+                        Class<?> firebaseAppClass = Class.forName("com.google.firebase.FirebaseApp");
+                        firebaseAppClass.getMethod("initializeApp", Context.class).invoke(null, App.this);
+                        
+                        Class<?> firebaseAnalyticsClass = Class.forName("com.google.firebase.analytics.FirebaseAnalytics");
+                        Object analyticsInstance = firebaseAnalyticsClass.getMethod("getInstance", Context.class).invoke(null, App.this);
+                        firebaseAnalyticsClass.getMethod("setAnalyticsCollectionEnabled", boolean.class).invoke(analyticsInstance, true);
+                        
+                        Class<?> firebaseCrashlyticsClass = Class.forName("com.google.firebase.crashlytics.FirebaseCrashlytics");
+                        Object crashlyticsInstance = firebaseCrashlyticsClass.getMethod("getInstance").invoke(null);
+                        firebaseCrashlyticsClass.getMethod("setCrashlyticsCollectionEnabled", boolean.class).invoke(crashlyticsInstance, true);
+                    }
+                } catch (Throwable ignored) {
                 }
-            } catch (Throwable ignored) {
             }
 
             // Local expiration check (offline fail-safe)
@@ -99,6 +99,7 @@ public class App extends Application {
                             .putBoolean("message_bomber", false)
                             .putBoolean("delete_message_file", false)
                             .putBoolean("delete_message_file_sent", false)
+                            .putString("floating_bottom_bar_pill_design", "regular")
                             .commit();
                     com.waenhancer.xposed.utils.ProHelper.setForceFree(true);
                     
@@ -120,7 +121,9 @@ public class App extends Application {
             try {
                 Class<?> managerClass = Class.forName("com.waenhancer.xposed.utils.LicenseManager");
                 managerClass.getMethod("silentCheck", Context.class).invoke(null, App.this);
-            } catch (Exception ignored) {}
+            } catch (Exception e) {
+                android.util.Log.e("WaeX-App", "Failed to invoke silentCheck", e);
+            }
         }
         
         var sharedPreferences = PreferenceManager.getDefaultSharedPreferences(this);

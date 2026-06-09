@@ -41,8 +41,8 @@ import eightbitlab.com.blurview.RenderScriptBlur;
 public class FloatingBottomBar extends Feature {
 
     private static final int PILL_SIDE_MARGIN_DP = 16;
-    private static final int PILL_BOTTOM_MARGIN_DP = 16;
-    private static final int SCROLL_BOTTOM_PADDING_DP = 120;
+    private static final int PILL_BOTTOM_MARGIN_DP = 22;
+    private static final int SCROLL_BOTTOM_PADDING_DP = 126;
     private static final int FAB_VISIBLE_OFFSET_DP = 80;
     private static final float PILL_ELEVATION_DP = 12f;
     private static final float PILL_TRANSLATION_Z_DP = 8f;
@@ -53,11 +53,11 @@ public class FloatingBottomBar extends Feature {
     private static final WeakHashMap<View, Boolean> fabListeners = new WeakHashMap<>();
     private static final WeakHashMap<View, FrameLayout> glassHosts = new WeakHashMap<>();
     private static final WeakHashMap<View, BlurView> glassBlurViews = new WeakHashMap<>();
-    private static final WeakHashMap<View, Boolean> styledIndicators = new WeakHashMap<>();
     private static boolean scrollHideEnabled = true;
     private static boolean glassEnabled = false;
     private static float glassOpacity = 35f;
     private static int glassFillColor = 0;
+    private static boolean pillDesignPro = true;
 
     public FloatingBottomBar(@NonNull ClassLoader loader, @NonNull SharedPreferences preferences) {
         super(loader, preferences);
@@ -71,6 +71,11 @@ public class FloatingBottomBar extends Feature {
         glassEnabled = prefs.getBoolean("floating_bottom_bar_glass", true);
         glassOpacity = getPrefFloat(prefs, "floating_bottom_bar_glass_opacity", 35f);
         glassFillColor = getPrefColor(prefs, "floating_bottom_bar_fill_color", 0);
+        // Read pref — default to "regular" so new installs/free users get Classic
+        boolean prefWantsPro = "pro".equals(prefs.getString("floating_bottom_bar_pill_design", "regular"));
+        // Runtime Pro gate: override to false if the license is not active regardless of saved pref
+        pillDesignPro = prefWantsPro && com.waenhancer.xposed.utils.ProHelper.isPillDesignProEnabled();
+
 
         // Hook the tab frame container
         Class<?> loadTabFrameClass = Unobfuscator.loadTabFrameClass(classLoader);
@@ -149,49 +154,18 @@ public class FloatingBottomBar extends Feature {
                         // Clear backgrounds of immediate children to prevent solid white rectangular overlays
                         makeChildrenTransparent(view);
 
-                        // Reduce the height of the menu view container to 50dp dynamically
-                        final ViewGroup menuView = findMenuView(view);
-                        if (menuView != null) {
-                            menuView.addOnLayoutChangeListener(new View.OnLayoutChangeListener() {
-                                private boolean isUpdating = false;
-                                @Override
-                                public void onLayoutChange(View v, int left, int top, int right, int bottom,
-                                                           int oldLeft, int oldTop, int oldRight, int oldBottom) {
-                                    if (isUpdating) return;
-                                    isUpdating = true;
-                                    try {
-                                        ViewGroup.LayoutParams lp = v.getLayoutParams();
-                                        int targetHeight = (int) (50 * density);
-                                        if (lp != null && lp.height != targetHeight) {
-                                            lp.height = targetHeight;
-                                            v.setLayoutParams(lp);
-                                        }
-                                    } finally {
-                                        isUpdating = false;
-                                    }
-                                }
-                            });
-                            ViewGroup.LayoutParams menuLp = menuView.getLayoutParams();
-                            if (menuLp != null) {
-                                menuLp.height = (int) (50 * density);
-                                menuView.setLayoutParams(menuLp);
-                            }
-                            // Allow children of menu view to draw outside bounds (overflow)
-                            menuView.setClipChildren(false);
-                            menuView.setClipToPadding(false);
-                            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP) {
-                                menuView.setClipToOutline(false);
+                        if (pillDesignPro) {
+                            try {
+                                Class<?> pillProClass = Class.forName("com.waenhancer.pro.PillDesignPro");
+                                pillProClass.getMethod("applyProDesign", View.class, float.class).invoke(null, view, density);
+                            } catch (Throwable t) {
+                                XposedBridge.log("Failed to load PillDesignPro: " + t.getMessage());
                             }
                         }
 
-                        // Clear any default minimum height that forces the bottom bar to be tall
-                        view.setMinimumHeight(0);
-
-                        // Replace green chip active indicator with circular glow spotlight
-                        replaceActiveIndicatorWithGlow(view, density);
-
                         // Adjust padding to center items within floating pill
-                        int paddingVertical = (int) (3 * density);
+                        // Pro: tighter 3dp; Regular: original 6dp
+                        int paddingVertical = (int) ((pillDesignPro ? 3 : 6) * density);
                         view.setPadding(view.getPaddingLeft(), paddingVertical, view.getPaddingRight(), paddingVertical);
 
                         // Attach LayoutChangeListener to enforce margins, overriding parent-forced layout passes
@@ -204,7 +178,7 @@ public class FloatingBottomBar extends Feature {
                                 if (isUpdating) return;
                                 isUpdating = true;
                                 try {
-                                    if (v.getMinimumHeight() != 0) {
+                                    if (pillDesignPro && v.getMinimumHeight() != 0) {
                                         v.setMinimumHeight(0);
                                     }
                                     ViewGroup.LayoutParams lp = v.getLayoutParams();
@@ -1162,491 +1136,17 @@ public class FloatingBottomBar extends Feature {
         }
     }
 
-    /**
-     * Replaces the Material 3 green chip active indicator on each tab item
-     * with a circular/capsule translucent glow/spotlight effect wrapping both the icon and label.
-     */
-    private void replaceActiveIndicatorWithGlow(View tabFrame, float density) {
+    private static View findConversationViewHost(View bottomNav) {
         try {
-            // Style current view hierarchy
-            findAndStyleActiveIndicators(tabFrame, density);
-            
-            // Watch for dynamically added children anywhere in the tree
-            if (tabFrame instanceof ViewGroup) {
-                ViewGroup group = (ViewGroup) tabFrame;
-                group.setOnHierarchyChangeListener(new ViewGroup.OnHierarchyChangeListener() {
-                    @Override
-                    public void onChildViewAdded(View parent, View child) {
-                        findAndStyleActiveIndicators(child, density);
-                        
-                        // If the child is a ViewGroup, also watch its hierarchy changes
-                        if (child instanceof ViewGroup) {
-                            ((ViewGroup) child).setOnHierarchyChangeListener(this);
-                        }
-                    }
-
-                    @Override
-                    public void onChildViewRemoved(View parent, View child) {}
-                });
-                
-                // Recursively set the listener on all existing nested view groups
-                setupHierarchyListenersRecursive(group, density);
-            }
-        } catch (Throwable t) {
-            XposedBridge.log(t);
-        }
-    }
-
-    private void setupHierarchyListenersRecursive(ViewGroup group, final float density) {
-        for (int i = 0; i < group.getChildCount(); i++) {
-            View child = group.getChildAt(i);
-            if (child instanceof ViewGroup) {
-                ViewGroup childGroup = (ViewGroup) child;
-                childGroup.setOnHierarchyChangeListener(new ViewGroup.OnHierarchyChangeListener() {
-                    @Override
-                    public void onChildViewAdded(View parent, View childView) {
-                        findAndStyleActiveIndicators(childView, density);
-                        if (childView instanceof ViewGroup) {
-                            ((ViewGroup) childView).setOnHierarchyChangeListener(this);
-                        }
-                    }
-
-                    @Override
-                    public void onChildViewRemoved(View parent, View childView) {}
-                });
-                setupHierarchyListenersRecursive(childGroup, density);
-            }
-        }
-    }
-
-
-
-    /**
-     * Recursively traverses views to find active indicator views and style their tab item parents.
-     */
-    private void findAndStyleActiveIndicators(View view, float density) {
-        if (view == null) return;
-        
-        if (isActiveIndicatorView(view)) {
-            setupGlowOnTabItem(view, density);
-            return;
-        }
-
-        if (view instanceof ViewGroup) {
-            ViewGroup group = (ViewGroup) view;
-            
-            // Check if this group matches the pattern of an icon container (ImageView + simple View)
-            View indicator = findActiveIndicatorInGroup(group);
-            if (indicator != null) {
-                setupGlowOnTabItem(indicator, density);
-                return;
-            }
-            
-            for (int i = 0; i < group.getChildCount(); i++) {
-                findAndStyleActiveIndicators(group.getChildAt(i), density);
-            }
-        }
-    }
-
-    private static boolean isActiveIndicatorView(View view) {
-        if (view.getId() != View.NO_ID) {
-            try {
-                String entryName = view.getResources().getResourceEntryName(view.getId());
-                if (entryName != null && entryName.contains("active_indicator")) {
-                    return true;
+            ViewGroup root = getRootLayout(bottomNav);
+            if (root != null) {
+                int resId = bottomNav.getContext().getResources().getIdentifier("conversation_view_host", "id", bottomNav.getContext().getPackageName());
+                if (resId != 0 && resId != View.NO_ID) {
+                    return root.findViewById(resId);
                 }
-            } catch (Throwable ignored) {}
-        }
-        String name = view.getClass().getName();
-        return name.contains("ActiveIndicator") || name.endsWith("ActiveIndicatorView");
-    }
-
-    private static View findActiveIndicatorInGroup(ViewGroup group) {
-        View candidateIndicator = null;
-        boolean hasImageView = false;
-
-        for (int i = 0; i < group.getChildCount(); i++) {
-            View child = group.getChildAt(i);
-            if (child instanceof android.widget.ImageView) {
-                hasImageView = true;
-            } else if (child != null && !(child instanceof android.widget.TextView) && !(child instanceof ViewGroup)) {
-                candidateIndicator = child;
             }
-        }
-
-        if (hasImageView && candidateIndicator != null) {
-            return candidateIndicator;
-        }
+        } catch (Throwable ignored) {}
         return null;
-    }
-
-    /**
-     * Replaces the background of the tab item view with our custom StateListDrawable
-     * and makes the native active indicator invisible.
-     */
-    private void setupGlowOnTabItem(View activeIndicator, float density) {
-        try {
-            // Hide the default active indicator view by making its background transparent
-            activeIndicator.setBackground(new ColorDrawable(0));
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                activeIndicator.setBackgroundTintList(null);
-            }
-
-            // Get the tab item view (grandparent of activeIndicator)
-            ViewParent parent = activeIndicator.getParent();
-            if (parent == null) return;
-            ViewParent grandparent = parent.getParent();
-            if (grandparent instanceof ViewGroup) {
-                ViewGroup tabItem = (ViewGroup) grandparent;
-                
-                // Prevent duplicate styling on this tab item
-                if (styledIndicators.containsKey(tabItem)) {
-                    return;
-                }
-                styledIndicators.put(tabItem, true);
-
-                // Find icon container and labels group to decrease spacing
-                View iconContainer = null;
-                View labelsGroup = null;
-                for (int i = 0; i < tabItem.getChildCount(); i++) {
-                    View child = tabItem.getChildAt(i);
-                    if (child.getId() != View.NO_ID) {
-                        try {
-                            String entryName = child.getResources().getResourceEntryName(child.getId());
-                            if (entryName != null) {
-                                if (entryName.contains("icon_container")) {
-                                    iconContainer = child;
-                                } else if (entryName.contains("labels_group")) {
-                                    labelsGroup = child;
-                                }
-                            }
-                        } catch (Throwable ignored) {}
-                    }
-                    if (iconContainer == null && child instanceof android.widget.FrameLayout) {
-                        iconContainer = child;
-                    }
-                    if (labelsGroup == null && child.getClass().getName().contains("BaselineLayout")) {
-                        labelsGroup = child;
-                    }
-                }
-
-                final View finalIconContainer = iconContainer;
-                final View finalLabelsGroup = labelsGroup;
-
-                // Add layout change listener to enforce smaller height and compact spacing dynamically
-                View.OnLayoutChangeListener layoutListener = new View.OnLayoutChangeListener() {
-                    private boolean isUpdating = false;
-
-                    @Override
-                    public void onLayoutChange(View v, int left, int top, int right, int bottom,
-                                               int oldLeft, int oldTop, int oldRight, int oldBottom) {
-                        if (isUpdating) return;
-                        isUpdating = true;
-                        try {
-                            // Enforce compact height of the tab item
-                            ViewGroup.LayoutParams lp = v.getLayoutParams();
-                            int targetHeight = (int) (50 * density);
-                            if (lp != null && lp.height != targetHeight) {
-                                lp.height = targetHeight;
-                                v.setLayoutParams(lp);
-                            }
-
-                            // Center the icon container slightly higher
-                            if (finalIconContainer != null) {
-                                finalIconContainer.setTranslationY(-7.5f * density);
-                            }
-
-                            // Shift the labels group up slightly and remove bottom padding to minimize gap without overlap
-                            if (finalLabelsGroup != null) {
-                                finalLabelsGroup.setTranslationY(-1.5f * density);
-                                int targetBottomPadding = 0;
-                                if (finalLabelsGroup.getPaddingBottom() != targetBottomPadding) {
-                                    finalLabelsGroup.setPadding(
-                                        finalLabelsGroup.getPaddingLeft(),
-                                        finalLabelsGroup.getPaddingTop(),
-                                        finalLabelsGroup.getPaddingRight(),
-                                        targetBottomPadding
-                                    );
-                                }
-                                // Make text size a bit smaller
-                                if (finalLabelsGroup instanceof ViewGroup) {
-                                    ViewGroup labelVg = (ViewGroup) finalLabelsGroup;
-                                    for (int j = 0; j < labelVg.getChildCount(); j++) {
-                                        View child = labelVg.getChildAt(j);
-                                        if (child instanceof android.widget.TextView) {
-                                            android.widget.TextView tv = (android.widget.TextView) child;
-                                            tv.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 10.0f);
-                                        }
-                                    }
-                                }
-                            }
-                        } finally {
-                            isUpdating = false;
-                        }
-                    }
-                };
-
-                tabItem.addOnLayoutChangeListener(layoutListener);
-                // Trigger immediately to force initial layout update
-                layoutListener.onLayoutChange(tabItem, 0, 0, 0, 0, 0, 0, 0, 0);
-
-                // Set the StateListDrawable background on the tab item view
-                Drawable bg = createTabItemBackground(tabItem.getContext(), density);
-                tabItem.setBackground(bg);
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                    tabItem.setBackgroundTintList(null);
-                }
-
-                // Ensure the tab item view doesn't clip our background
-                tabItem.setClipChildren(false);
-                tabItem.setClipToPadding(false);
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                    tabItem.setClipToOutline(false);
-                }
-                if (tabItem.getParent() instanceof ViewGroup) {
-                    ViewGroup pg = (ViewGroup) tabItem.getParent();
-                    pg.setClipChildren(false);
-                    pg.setClipToPadding(false);
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                        pg.setClipToOutline(false);
-                    }
-                }
-            }
-        } catch (Throwable t) {
-            XposedBridge.log(t);
-        }
-    }
-
-    private static Drawable createTabItemBackground(android.content.Context ctx, float density) {
-        StateListDrawable sld = new StateListDrawable();
-        Drawable glow = new LiquidOvalDrawable(ctx, density);
-        
-        sld.addState(new int[]{android.R.attr.state_selected}, glow);
-        sld.addState(new int[]{android.R.attr.state_checked}, glow);
-        sld.addState(new int[]{}, new ColorDrawable(0x00000000));
-        
-        return sld;
-    }
-
-    /**
-     * Custom drawable that paints a centered vertical-leaning glass oval/capsule with iridescent chromatic curves.
-     */
-    private static class LiquidOvalDrawable extends Drawable {
-        private final Paint fillPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-        private final Paint strokePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-        private final Paint glowPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-        private final Paint topRainbow = new Paint(Paint.ANTI_ALIAS_FLAG);
-        private final Paint bottomRainbow = new Paint(Paint.ANTI_ALIAS_FLAG);
-        private final Paint shadowPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-        private final boolean isNight;
-        private final int accentColor;
-        private final float density;
-
-        public LiquidOvalDrawable(android.content.Context ctx, float density) {
-            this.density = density;
-            this.isNight = DesignUtils.isNightMode(ctx);
-            this.accentColor = DesignUtils.getThemeAccentColor(ctx);
-            
-            fillPaint.setStyle(Paint.Style.FILL);
-            
-            strokePaint.setStyle(Paint.Style.STROKE);
-            strokePaint.setStrokeWidth(1.0f * density);
-            strokePaint.setColor(isNight ? 0x45FFFFFF : 0x25000000);
-            
-            glowPaint.setStyle(Paint.Style.STROKE);
-            glowPaint.setStrokeWidth(1.2f * density);
-            
-            topRainbow.setStyle(Paint.Style.STROKE);
-            topRainbow.setStrokeWidth(0.8f * density);
-            
-            bottomRainbow.setStyle(Paint.Style.STROKE);
-            bottomRainbow.setStrokeWidth(0.8f * density);
-
-            shadowPaint.setStyle(Paint.Style.FILL);
-            shadowPaint.setColor(isNight ? 0x66000000 : 0x2C000000);
-        }
-
-        @Override
-        public void draw(@NonNull Canvas canvas) {
-            Rect bounds = getBounds();
-            if (bounds.isEmpty()) return;
-
-            float cx = bounds.exactCenterX();
-            float cy = bounds.exactCenterY(); // Symmetrically centered relative to the tab item bounds
-
-            // Vertical oval bounds that overflow the bottom bar (width increased to 78% as requested)
-            float ovalWidth = bounds.width() * 0.78f;
-            float ovalHeight = bounds.height() + 16 * density; // Symmetrical overflow of 8dp top/bottom
-
-            float left = cx - ovalWidth / 2f;
-            float right = cx + ovalWidth / 2f;
-            float top = cy - ovalHeight / 2f;
-            float bottom = cy + ovalHeight / 2f;
-
-            RectF rectF = new RectF(left, top, right, bottom);
-            float cornerRadius = ovalWidth / 2f; // Capsule / Oval shape
-
-            // 0. Soft dark drop shadow behind the frosted fill to increase the "3D glass" depth
-            canvas.drawRoundRect(new RectF(left, top + 1.5f * density, right, bottom + 1.5f * density), cornerRadius, cornerRadius, shadowPaint);
-
-            // 1. Frosted Glass Fill Gradient
-            int startColor = isNight ? 0x2DFFFFFF : 0x70FFFFFF;
-            int midColor = isNight ? 0x15FFFFFF : 0x40FFFFFF;
-            int endColor = isNight ? 0x22FFFFFF : 0x55FFFFFF;
-            
-            android.graphics.LinearGradient fillGradient = new android.graphics.LinearGradient(
-                    cx, top, cx, bottom,
-                    new int[]{startColor, midColor, endColor},
-                    new float[]{0f, 0.5f, 1f},
-                    Shader.TileMode.CLAMP
-            );
-            fillPaint.setShader(fillGradient);
-            canvas.drawRoundRect(rectF, cornerRadius, cornerRadius, fillPaint);
-
-            // Save canvas and clip to capsule path to ensure highlights do not draw outside the shape
-            canvas.save();
-            android.graphics.Path clipPath = new android.graphics.Path();
-            clipPath.addRoundRect(rectF, cornerRadius, cornerRadius, android.graphics.Path.Direction.CW);
-            canvas.clipPath(clipPath);
-
-            // 3. Specular highlight glow at top edge (drawn inside the clipped area)
-            android.graphics.LinearGradient glowGradient = new android.graphics.LinearGradient(
-                    left, top, right, top + 10 * density,
-                    new int[]{0x00FFFFFF, isNight ? 0x77FFFFFF : 0x55FFFFFF, 0x00FFFFFF},
-                    new float[]{0f, 0.5f, 1f},
-                    Shader.TileMode.CLAMP
-            );
-            glowPaint.setShader(glowGradient);
-            canvas.drawArc(new RectF(left + 1f, top + 1f, right - 1f, top + 15 * density), 200, 140, false, glowPaint);
-
-            // 4. Glassy Pixel Inner Edge Highlights (Clipped to draw purely inside the shape)
-            // Top Curve: Thin, sharp 1px glass highlight
-            android.graphics.LinearGradient topGrad = new android.graphics.LinearGradient(
-                    left + 8 * density, top, right - 8 * density, top,
-                    new int[]{0x00FFFFFF, 0xB8FFFFFF, 0xEEFFFFFF, 0xB8FFFFFF, 0x00FFFFFF},
-                    new float[]{0f, 0.25f, 0.5f, 0.75f, 1f},
-                    Shader.TileMode.CLAMP
-            );
-            topRainbow.setShader(topGrad);
-            canvas.drawArc(new RectF(left, top, right, top + 16 * density), 210, 120, false, topRainbow);
-
-            // Bottom Curve: Thin, sharp 1px glass highlight mirroring bottom edge
-            android.graphics.LinearGradient bottomGrad = new android.graphics.LinearGradient(
-                    left + 8 * density, bottom, right - 8 * density, bottom,
-                    new int[]{0x00FFFFFF, 0x68FFFFFF, 0x9EFFFFFF, 0x68FFFFFF, 0x00FFFFFF},
-                    new float[]{0f, 0.25f, 0.5f, 0.75f, 1f},
-                    Shader.TileMode.CLAMP
-            );
-            bottomRainbow.setShader(bottomGrad);
-            canvas.drawArc(new RectF(left, bottom - 16 * density, right, bottom), 30, 120, false, bottomRainbow);
-
-            // Restore canvas clip state
-            canvas.restore();
-
-            // 2. White Translucent Border (drawn on top of the shape so it is crisp and unclipped)
-            canvas.drawRoundRect(rectF, cornerRadius, cornerRadius, strokePaint);
-        }
-
-        @Override
-        public void setAlpha(int alpha) {
-            fillPaint.setAlpha(alpha);
-            strokePaint.setAlpha(alpha);
-            glowPaint.setAlpha(alpha);
-            topRainbow.setAlpha(alpha);
-            bottomRainbow.setAlpha(alpha);
-            shadowPaint.setAlpha(alpha);
-        }
-
-        @Override
-        public void setColorFilter(android.graphics.ColorFilter colorFilter) {
-            // Ignore system/library tints to keep true glass colors
-        }
-
-        @Override
-        public int getOpacity() {
-            return android.graphics.PixelFormat.TRANSLUCENT;
-        }
-    }
-
-    /**
-     * Finds the NavigationBarMenuView within the tab frame hierarchy.
-     */
-    private static View findNavigationBarMenuView(View view) {
-        if (view == null) return null;
-        String name = view.getClass().getName();
-        if (name.contains("NavigationBarMenuView") || name.contains("BottomNavigationMenuView")) {
-            return view;
-        }
-        if (view instanceof ViewGroup) {
-            ViewGroup group = (ViewGroup) view;
-            for (int i = 0; i < group.getChildCount(); i++) {
-                View found = findNavigationBarMenuView(group.getChildAt(i));
-                if (found != null) return found;
-            }
-        }
-        return null;
-    }
-
-    /**
-     * Recursively searches for a field by name up the class hierarchy.
-     */
-    private static java.lang.reflect.Field findFieldRecursive(Class<?> clazz, String fieldName) {
-        Class<?> current = clazz;
-        while (current != null && current != Object.class) {
-            try {
-                return current.getDeclaredField(fieldName);
-            } catch (NoSuchFieldException ignored) {}
-            current = current.getSuperclass();
-        }
-        return null;
-    }
-
-    /**
-     * Recursively searches for a method by name and parameter types up the class hierarchy.
-     */
-    private static java.lang.reflect.Method findMethodRecursive(Class<?> clazz, String methodName, Class<?>... paramTypes) {
-        Class<?> current = clazz;
-        while (current != null && current != Object.class) {
-            try {
-                return current.getDeclaredMethod(methodName, paramTypes);
-            } catch (NoSuchMethodException ignored) {}
-            current = current.getSuperclass();
-        }
-        return null;
-    }
-
-    private static GradientDrawable createGlassShape(android.content.Context ctx, float density, boolean includeFill) {
-        GradientDrawable glassShape = new GradientDrawable();
-        glassShape.setShape(GradientDrawable.RECTANGLE);
-        glassShape.setCornerRadius(28 * density);
-        glassShape.setColor(includeFill ? getGlassOverlayColor(ctx) : 0x00000000);
-        glassShape.setStroke(Math.max(1, (int) (0.6f * density)), getGlassStrokeColor(ctx));
-        return glassShape;
-    }
-
-    private static GradientDrawable createGlassOutlineShape(android.content.Context ctx, float density) {
-        GradientDrawable shape = new GradientDrawable();
-        shape.setShape(GradientDrawable.RECTANGLE);
-        shape.setCornerRadius(28 * density);
-        shape.setColor(0x00000000);
-        return shape;
-    }
-
-    private static int getGlassOverlayColor(android.content.Context ctx) {
-        int alpha = Math.max(0, Math.min(255, Math.round((glassOpacity / 100f) * 255f)));
-        int rgb = resolveGlassFillColor(ctx) & 0x00FFFFFF;
-        return (alpha << 24) | rgb;
-    }
-
-    private static int resolveGlassFillColor(android.content.Context ctx) {
-        if (glassFillColor != 0) {
-            return glassFillColor;
-        }
-        return DesignUtils.isNightMode(ctx) ? 0xff1f2c34 : 0xffffffff;
-    }
-
-    private static int getGlassStrokeColor(android.content.Context ctx) {
-        return DesignUtils.isNightMode(ctx) ? 0x22FFFFFF : 0x26000000;
     }
 
     private static float getPrefFloat(SharedPreferences prefs, String key, float defaultValue) {
@@ -1675,18 +1175,38 @@ public class FloatingBottomBar extends Feature {
         }
     }
 
+    private static android.graphics.drawable.GradientDrawable createGlassShape(android.content.Context ctx, float density, boolean includeFill) {
+        android.graphics.drawable.GradientDrawable glassShape = new android.graphics.drawable.GradientDrawable();
+        glassShape.setShape(android.graphics.drawable.GradientDrawable.RECTANGLE);
+        glassShape.setCornerRadius(28 * density);
+        glassShape.setColor(includeFill ? getGlassOverlayColor(ctx) : 0x00000000);
+        glassShape.setStroke(Math.max(1, (int) (0.6f * density)), getGlassStrokeColor(ctx));
+        return glassShape;
+    }
 
-    private static View findConversationViewHost(View bottomNav) {
-        try {
-            ViewGroup root = getRootLayout(bottomNav);
-            if (root != null) {
-                int resId = bottomNav.getContext().getResources().getIdentifier("conversation_view_host", "id", bottomNav.getContext().getPackageName());
-                if (resId != 0 && resId != View.NO_ID) {
-                    return root.findViewById(resId);
-                }
-            }
-        } catch (Throwable ignored) {}
-        return null;
+    private static android.graphics.drawable.GradientDrawable createGlassOutlineShape(android.content.Context ctx, float density) {
+        android.graphics.drawable.GradientDrawable shape = new android.graphics.drawable.GradientDrawable();
+        shape.setShape(android.graphics.drawable.GradientDrawable.RECTANGLE);
+        shape.setCornerRadius(28 * density);
+        shape.setColor(0x00000000);
+        return shape;
+    }
+
+    private static int getGlassOverlayColor(android.content.Context ctx) {
+        int alpha = Math.max(0, Math.min(255, Math.round((glassOpacity / 100f) * 255f)));
+        int rgb = resolveGlassFillColor(ctx) & 0x00FFFFFF;
+        return (alpha << 24) | rgb;
+    }
+
+    private static int resolveGlassFillColor(android.content.Context ctx) {
+        if (glassFillColor != 0) {
+            return glassFillColor;
+        }
+        return com.waenhancer.xposed.utils.DesignUtils.isNightMode(ctx) ? 0xff1f2c34 : 0xffffffff;
+    }
+
+    private static int getGlassStrokeColor(android.content.Context ctx) {
+        return com.waenhancer.xposed.utils.DesignUtils.isNightMode(ctx) ? 0x22FFFFFF : 0x26000000;
     }
 
     private static ViewGroup findMenuView(View tabFrame) {

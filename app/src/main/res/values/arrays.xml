@@ -386,5 +386,17 @@
         <item>conversations</item>
         <item>messages</item>
     </string-array>
+    <string-array name="pill_design_entries">
+        <item>Regular (Classic)</item>
+        <item>Pro (Refined)</item>
+    </string-array>
+    <string-array name="pill_design_values">
+        <item>regular</item>
+        <item>pro</item>
+    </string-array>
+    <!-- Values in this array require an active Pro license to select -->
+    <string-array name="pill_design_pro_values">
+        <item>pro</item>
+    </string-array>
 
 </resources>

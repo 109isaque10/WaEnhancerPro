@@ -33,6 +33,60 @@ public class ProHelper {
     }
 
     /**
+     * Checks if the Pro pill design is enabled in the decrypted config.
+     */
+    public static boolean isPillDesignProEnabled() {
+        if (!BuildConfig.HAS_PRO_FEATURES) {
+            android.util.Log.d("WaeX-Helper", "isPillDesignProEnabled: HAS_PRO_FEATURES is false");
+            return false;
+        }
+        try {
+            Class<?> configClass = Class.forName("com.waenhancer.pro.utils.ProConfig");
+            Boolean result = (Boolean) configClass.getMethod("isPillDesignProEnabled").invoke(null);
+            android.util.Log.d("WaeX-Helper", "isPillDesignProEnabled: ProConfig returned = " + result);
+            return result != null && result;
+        } catch (Throwable t) {
+            android.util.Log.e("WaeX-Helper", "isPillDesignProEnabled failed", t);
+            return false;
+        }
+    }
+
+    /**
+     * Triggers a silent check/config refresh in the background, invoking the callback upon completion.
+     */
+    public static void silentCheck(final Context context, final Runnable callback) {
+        if (!BuildConfig.HAS_PRO_FEATURES) {
+            if (callback != null) callback.run();
+            return;
+        }
+        try {
+            Class<?> managerClass = Class.forName("com.waenhancer.xposed.utils.LicenseManager");
+            Class<?> listenerClass = Class.forName("com.waenhancer.xposed.utils.LicenseManager$SilentCheckListener");
+
+            Object listenerProxy = java.lang.reflect.Proxy.newProxyInstance(
+                listenerClass.getClassLoader(),
+                new Class<?>[] { listenerClass },
+                new java.lang.reflect.InvocationHandler() {
+                    @Override
+                    public Object invoke(Object proxy, java.lang.reflect.Method method, Object[] args) throws Throwable {
+                        if (method.getName().equals("onStatusChanged")) {
+                            if (callback != null) {
+                                new android.os.Handler(android.os.Looper.getMainLooper()).post(callback);
+                            }
+                        }
+                        return null;
+                    }
+                }
+            );
+
+            managerClass.getMethod("silentCheck", Context.class, listenerClass).invoke(null, context, listenerProxy);
+        } catch (Throwable t) {
+            android.util.Log.e("WaeX-Helper", "silentCheck failed", t);
+            if (callback != null) callback.run();
+        }
+    }
+
+    /**
      * Retrieves the plan name matching active, expired, or free states.
      */
     public static String getProPlanName() {
