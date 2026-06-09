@@ -1,7 +1,19 @@
 package com.waenhancer.xposed.features.customization;
 
 import android.content.SharedPreferences;
+import android.content.res.ColorStateList;
+import android.graphics.Bitmap;
+import android.graphics.Canvas;
+import android.graphics.Paint;
+import android.graphics.RadialGradient;
+import android.graphics.Rect;
+import android.graphics.RectF;
+import android.graphics.Shader;
+import android.graphics.drawable.BitmapDrawable;
+import android.graphics.drawable.ColorDrawable;
+import android.graphics.drawable.Drawable;
 import android.graphics.drawable.GradientDrawable;
+import android.graphics.drawable.StateListDrawable;
 import android.os.Build;
 import android.view.View;
 import android.view.ViewGroup;
@@ -37,9 +49,11 @@ public class FloatingBottomBar extends Feature {
     private static final WeakHashMap<View, Boolean> styledBottomBars = new WeakHashMap<>();
     private static final WeakHashMap<View, Boolean> registeredScrollListeners = new WeakHashMap<>();
     private static final WeakHashMap<View, Float> targetTranslations = new WeakHashMap<>();
+    private static final WeakHashMap<View, Integer> originalBottomPaddings = new WeakHashMap<>();
     private static final WeakHashMap<View, Boolean> fabListeners = new WeakHashMap<>();
     private static final WeakHashMap<View, FrameLayout> glassHosts = new WeakHashMap<>();
     private static final WeakHashMap<View, BlurView> glassBlurViews = new WeakHashMap<>();
+    private static final WeakHashMap<View, Boolean> styledIndicators = new WeakHashMap<>();
     private static boolean scrollHideEnabled = true;
     private static boolean glassEnabled = false;
     private static float glassOpacity = 35f;
@@ -54,13 +68,27 @@ public class FloatingBottomBar extends Feature {
         if (!prefs.getBoolean("floating_bottom_bar", false)) return;
 
         scrollHideEnabled = prefs.getBoolean("floating_bottom_bar_scroll_hide", true);
-        glassEnabled = prefs.getBoolean("floating_bottom_bar_glass", false);
+        glassEnabled = prefs.getBoolean("floating_bottom_bar_glass", true);
         glassOpacity = getPrefFloat(prefs, "floating_bottom_bar_glass_opacity", 35f);
         glassFillColor = getPrefColor(prefs, "floating_bottom_bar_fill_color", 0);
-        XposedBridge.log("[WAEX] FloatingBottomBar.doHook() initialized");
 
         // Hook the tab frame container
         Class<?> loadTabFrameClass = Unobfuscator.loadTabFrameClass(classLoader);
+        XposedBridge.hookAllMethods(loadTabFrameClass, "setVisibility", new XC_MethodHook() {
+            @Override
+            protected void afterHookedMethod(MethodHookParam param) throws Throwable {
+                try {
+                    View view = (View) param.thisObject;
+                    if (view == null) return;
+                    int visibility = (int) param.args[0];
+                    View animTarget = getBarAnimationTarget(view);
+                    if (animTarget != view && animTarget.getVisibility() != visibility) {
+                        animTarget.setVisibility(visibility);
+                    }
+                } catch (Throwable ignored) {}
+            }
+        });
+
         XposedBridge.hookAllMethods(loadTabFrameClass, "onAttachedToWindow", new XC_MethodHook() {
             @Override
             protected void afterHookedMethod(MethodHookParam param) throws Throwable {
@@ -82,7 +110,9 @@ public class FloatingBottomBar extends Feature {
 
                         boolean isNight = DesignUtils.isNightMode(view.getContext());
                         int bgColor = isNight ? 0xff1f2c34 : 0xffffffff;
-                        if (prefs.getBoolean("changecolor", false)) {
+                        if (glassFillColor != 0) {
+                            bgColor = glassFillColor;
+                        } else if (prefs.getBoolean("changecolor", false)) {
                             int customBg = DesignUtils.getPrimarySurfaceColor();
                             if (customBg != 0 && customBg != -1) {
                                 bgColor = customBg;
@@ -98,6 +128,14 @@ public class FloatingBottomBar extends Feature {
                             view.setBackgroundTintList(null);
                         }
 
+                        if (view instanceof ViewGroup) {
+                            ((ViewGroup) view).setClipChildren(false);
+                            ((ViewGroup) view).setClipToPadding(false);
+                        }
+                        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP) {
+                            view.setClipToOutline(false);
+                        }
+
                         if (glassEnabled) {
                             applyGlassmorphism(view, density);
                         } else {
@@ -111,8 +149,49 @@ public class FloatingBottomBar extends Feature {
                         // Clear backgrounds of immediate children to prevent solid white rectangular overlays
                         makeChildrenTransparent(view);
 
+                        // Reduce the height of the menu view container to 50dp dynamically
+                        final ViewGroup menuView = findMenuView(view);
+                        if (menuView != null) {
+                            menuView.addOnLayoutChangeListener(new View.OnLayoutChangeListener() {
+                                private boolean isUpdating = false;
+                                @Override
+                                public void onLayoutChange(View v, int left, int top, int right, int bottom,
+                                                           int oldLeft, int oldTop, int oldRight, int oldBottom) {
+                                    if (isUpdating) return;
+                                    isUpdating = true;
+                                    try {
+                                        ViewGroup.LayoutParams lp = v.getLayoutParams();
+                                        int targetHeight = (int) (50 * density);
+                                        if (lp != null && lp.height != targetHeight) {
+                                            lp.height = targetHeight;
+                                            v.setLayoutParams(lp);
+                                        }
+                                    } finally {
+                                        isUpdating = false;
+                                    }
+                                }
+                            });
+                            ViewGroup.LayoutParams menuLp = menuView.getLayoutParams();
+                            if (menuLp != null) {
+                                menuLp.height = (int) (50 * density);
+                                menuView.setLayoutParams(menuLp);
+                            }
+                            // Allow children of menu view to draw outside bounds (overflow)
+                            menuView.setClipChildren(false);
+                            menuView.setClipToPadding(false);
+                            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP) {
+                                menuView.setClipToOutline(false);
+                            }
+                        }
+
+                        // Clear any default minimum height that forces the bottom bar to be tall
+                        view.setMinimumHeight(0);
+
+                        // Replace green chip active indicator with circular glow spotlight
+                        replaceActiveIndicatorWithGlow(view, density);
+
                         // Adjust padding to center items within floating pill
-                        int paddingVertical = (int) (6 * density);
+                        int paddingVertical = (int) (3 * density);
                         view.setPadding(view.getPaddingLeft(), paddingVertical, view.getPaddingRight(), paddingVertical);
 
                         // Attach LayoutChangeListener to enforce margins, overriding parent-forced layout passes
@@ -125,6 +204,9 @@ public class FloatingBottomBar extends Feature {
                                 if (isUpdating) return;
                                 isUpdating = true;
                                 try {
+                                    if (v.getMinimumHeight() != 0) {
+                                        v.setMinimumHeight(0);
+                                    }
                                     ViewGroup.LayoutParams lp = v.getLayoutParams();
                                     if (lp instanceof ViewGroup.MarginLayoutParams) {
                                         ViewGroup.MarginLayoutParams mlp = (ViewGroup.MarginLayoutParams) lp;
@@ -160,7 +242,7 @@ public class FloatingBottomBar extends Feature {
                         adjustLayoutOverlap(view, density);
 
                     } catch (Throwable t) {
-                        XposedBridge.log("[WAEX] FloatingBottomBar styling failed: " + t.getMessage());
+                        XposedBridge.log(t);
                     }
                 });
             }
@@ -169,52 +251,66 @@ public class FloatingBottomBar extends Feature {
         // Hook RecyclerView's onAttachedToWindow to dynamically hook scroll events/padding on pages
         try {
             Class<?> recyclerViewClass = XposedHelpers.findClass("androidx.recyclerview.widget.RecyclerView", classLoader);
+            
             XposedBridge.hookAllMethods(recyclerViewClass, "onAttachedToWindow", new XC_MethodHook() {
                 @Override
                 protected void afterHookedMethod(MethodHookParam param) throws Throwable {
                     final View rv = (View) param.thisObject;
                     if (rv == null) return;
-                    rv.post(() -> {
-                        try {
-                            if (isDescendantOfTabsPager(rv)) {
-                                ViewGroup rootLayout = getRootLayout(rv);
-                                if (rootLayout == null) return;
-                                View bottomNav = findBottomNavInRoot(rootLayout);
-                                if (bottomNav == null) return;
-
-                                float density = rv.getContext().getResources().getDisplayMetrics().density;
-                                int paddingBottom = dp(density, SCROLL_BOTTOM_PADDING_DP);
-
-                                rv.setPadding(
-                                    rv.getPaddingLeft(),
-                                    rv.getPaddingTop(),
-                                    rv.getPaddingRight(),
-                                    paddingBottom
-                                );
-                                if (rv instanceof ViewGroup) {
-                                    ViewGroup vg = (ViewGroup) rv;
-                                    vg.setClipToPadding(false);
-                                }
-
-                                if (rv instanceof androidx.recyclerview.widget.RecyclerView) {
-                                    androidx.recyclerview.widget.RecyclerView recyclerView = (androidx.recyclerview.widget.RecyclerView) rv;
-                                    if (!registeredScrollListeners.containsKey(recyclerView)) {
-                                        recyclerView.addOnScrollListener(new androidx.recyclerview.widget.RecyclerView.OnScrollListener() {
-                                            @Override
-                                            public void onScrolled(@NonNull androidx.recyclerview.widget.RecyclerView rView, int dx, int dy) {
-                                                onViewScrolled(bottomNav, dy);
-                                            }
-                                        });
-                                        registeredScrollListeners.put(recyclerView, true);
+                    rv.addOnLayoutChangeListener(new View.OnLayoutChangeListener() {
+                        private boolean hasSetPadding = false;
+                        @Override
+                        public void onLayoutChange(View v, int left, int top, int right, int bottom,
+                                                   int oldLeft, int oldTop, int oldRight, int oldBottom) {
+                            try {
+                                if (hasSetPadding) return;
+                                if (v.getHeight() > 0 && v.getWidth() > 0) {
+                                    if (isMainTabScrollable(v)) {
+                                        View bottomNav = findBottomNavForScrollable(v);
+                                        if (bottomNav != null) {
+                                            float density = v.getContext().getResources().getDisplayMetrics().density;
+                                            int paddingBottom = dp(density, SCROLL_BOTTOM_PADDING_DP);
+                                            prepareScrollableBottomPadding(v, paddingBottom);
+                                            hasSetPadding = true;
+                                        }
+                                    } else {
+                                        restoreOriginalBottomPadding(v);
+                                        hasSetPadding = true;
                                     }
                                 }
-                            }
-                        } catch (Throwable ignored) {}
+                            } catch (Throwable ignored) {}
+                        }
                     });
                 }
             });
+
+            // Hook dispatchOnScrolled candidate methods in RecyclerView
+            java.util.List<java.lang.reflect.Method> candidateMethods = new java.util.ArrayList<>();
+            for (java.lang.reflect.Method m : recyclerViewClass.getDeclaredMethods()) {
+                Class<?>[] paramTypes = m.getParameterTypes();
+                if (paramTypes.length == 2 && paramTypes[0] == int.class && paramTypes[1] == int.class && m.getReturnType() == void.class) {
+                    String name = m.getName();
+                    if (java.lang.reflect.Modifier.isStatic(m.getModifiers())) continue;
+                    if (name.equals("scrollBy") || name.equals("scrollTo") || name.equals("onMeasure") || name.equals("onSizeChanged") || name.equals("onLayout") || name.equals("setMeasuredDimension")) {
+                        continue;
+                    }
+                    candidateMethods.add(m);
+                }
+            }
+
+            for (java.lang.reflect.Method m : candidateMethods) {
+                XposedBridge.hookMethod(m, new XC_MethodHook() {
+                    @Override
+                    protected void afterHookedMethod(MethodHookParam param) throws Throwable {
+                        if (param.args == null || param.args.length < 2) return;
+                        View rv = (View) param.thisObject;
+                        int dy = (int) param.args[1];
+                        handleRecyclerViewScrolled(rv, dy);
+                    }
+                });
+            }
         } catch (Throwable t) {
-            XposedBridge.log("[WAEX] Failed to hook RecyclerView.onAttachedToWindow: " + t.getMessage());
+            XposedBridge.log(t);
         }
 
         // Hook WDSFab constructors to add attach state change and layout change listeners.
@@ -269,7 +365,7 @@ public class FloatingBottomBar extends Feature {
                 }
             });
         } catch (Throwable t) {
-            XposedBridge.log("[WAEX] Failed to hook WDSFab constructors: " + t.getMessage());
+            XposedBridge.log(t);
         }
     }
 
@@ -310,7 +406,6 @@ public class FloatingBottomBar extends Feature {
                     View nestedContent = conversationListViewHost.findViewById(android.R.id.content);
                     if (nestedContent instanceof ViewGroup) {
                         root = (ViewGroup) nestedContent;
-                        XposedBridge.log("[WAEX] Found nested content FrameLayout for bottom bar reparenting");
                     }
                 }
             }
@@ -325,7 +420,6 @@ public class FloatingBottomBar extends Feature {
             // Find the ViewPager or ViewPager2 sibling/ancestor in rootLayout
             final View viewPager = findViewPager(rootLayout);
             if (viewPager == null) {
-                XposedBridge.log("[WAEX] ViewPager not found in root layout. Overlap aborted.");
                 return;
             }
 
@@ -433,8 +527,29 @@ public class FloatingBottomBar extends Feature {
                     barOverlay.bringToFront();
                     applyPillShadow(barOverlay, density);
                     bottomNav.bringToFront();
+
+                    final View animTarget = getBarAnimationTarget(bottomNav);
+                    final ViewGroup finalParentGroup = parentGroup;
+                    bottomNav.getViewTreeObserver().addOnGlobalLayoutListener(new android.view.ViewTreeObserver.OnGlobalLayoutListener() {
+                        @Override
+                        public void onGlobalLayout() {
+                            try {
+                                int targetVisibility = View.GONE;
+                                if (bottomNav.getVisibility() == View.VISIBLE && finalParentGroup.isShown()) {
+                                    targetVisibility = View.VISIBLE;
+                                    View convHost = findConversationViewHost(bottomNav);
+                                    if (convHost != null && convHost.isShown()) {
+                                        targetVisibility = View.GONE;
+                                    }
+                                }
+                                if (animTarget.getVisibility() != targetVisibility) {
+                                    animTarget.setVisibility(targetVisibility);
+                                }
+                            } catch (Throwable ignored) {}
+                        }
+                    });
                 } catch (Throwable t) {
-                    XposedBridge.log("[WAEX] Dynamic re-parenting failed: " + t.getMessage());
+                    XposedBridge.log(t);
                 }
             });
 
@@ -444,7 +559,7 @@ public class FloatingBottomBar extends Feature {
                     int paddingBottom = dp(density, SCROLL_BOTTOM_PADDING_DP);
                     setBottomPaddingAndScrollListeners(viewPager, paddingBottom, bottomNav);
                 } catch (Throwable t) {
-                    XposedBridge.log("[WAEX] ViewPager scroll listener setup failed: " + t.getMessage());
+                    XposedBridge.log(t);
                 }
             });
 
@@ -459,7 +574,7 @@ public class FloatingBottomBar extends Feature {
             }, 500);
 
         } catch (Throwable t) {
-            XposedBridge.log("[WAEX] adjustLayoutOverlap failed: " + t.getMessage());
+            XposedBridge.log(t);
         }
     }
 
@@ -484,39 +599,18 @@ public class FloatingBottomBar extends Feature {
             ViewGroup group = (ViewGroup) view;
             for (int i = 0; i < group.getChildCount(); i++) {
                 View child = group.getChildAt(i);
-                String name = child.getClass().getName();
-                if (child instanceof androidx.recyclerview.widget.RecyclerView || 
-                    child instanceof android.widget.AbsListView || 
-                    child instanceof android.widget.ScrollView ||
-                    name.contains("RecyclerView") ||
-                    name.contains("ScrollView")) {
-                    
+                if (isScrollableClass(child.getClass())) {
                     final View scrollView = child;
                     scrollView.post(() -> {
                         try {
-                            scrollView.setPadding(
-                                scrollView.getPaddingLeft(),
-                                scrollView.getPaddingTop(),
-                                scrollView.getPaddingRight(),
-                                paddingBottom
-                            );
-                            if (scrollView instanceof ViewGroup) {
-                                ViewGroup vg = (ViewGroup) scrollView;
-                                vg.setClipToPadding(false);
+                            if (!isMainTabScrollable(scrollView)) {
+                                restoreOriginalBottomPadding(scrollView);
+                                return;
                             }
+                            prepareScrollableBottomPadding(scrollView, paddingBottom);
 
-                            if (scrollView instanceof androidx.recyclerview.widget.RecyclerView) {
-                                androidx.recyclerview.widget.RecyclerView rv = (androidx.recyclerview.widget.RecyclerView) scrollView;
-                                if (!registeredScrollListeners.containsKey(rv)) {
-                                    rv.addOnScrollListener(new androidx.recyclerview.widget.RecyclerView.OnScrollListener() {
-                                        @Override
-                                        public void onScrolled(@NonNull androidx.recyclerview.widget.RecyclerView recyclerView, int dx, int dy) {
-                                            onViewScrolled(bottomNav, dy);
-                                        }
-                                    });
-                                    registeredScrollListeners.put(rv, true);
-                                }
-                            } else if (scrollView instanceof ViewGroup) {
+                            String scrollClassName = scrollView.getClass().getName();
+                            if (scrollClassName.contains("ScrollView") && scrollView instanceof ViewGroup) {
                                 ViewGroup vg = (ViewGroup) scrollView;
                                 if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
                                     if (!registeredScrollListeners.containsKey(vg)) {
@@ -536,11 +630,56 @@ public class FloatingBottomBar extends Feature {
         }
     }
 
+    private static void prepareScrollableBottomPadding(View scrollView, int paddingBottom) {
+        if (!originalBottomPaddings.containsKey(scrollView)) {
+            originalBottomPaddings.put(scrollView, scrollView.getPaddingBottom());
+        }
+        scrollView.setPadding(
+            scrollView.getPaddingLeft(),
+            scrollView.getPaddingTop(),
+            scrollView.getPaddingRight(),
+            paddingBottom
+        );
+        if (scrollView instanceof ViewGroup) {
+            ViewGroup vg = (ViewGroup) scrollView;
+            vg.setClipToPadding(false);
+        }
+    }
+
+    private static void restoreOriginalBottomPadding(View scrollView) {
+        Integer originalBottom = originalBottomPaddings.get(scrollView);
+        if (originalBottom == null) return;
+        if (scrollView.getPaddingBottom() == originalBottom) return;
+        scrollView.setPadding(
+            scrollView.getPaddingLeft(),
+            scrollView.getPaddingTop(),
+            scrollView.getPaddingRight(),
+            originalBottom
+        );
+    }
+
+    private static void handleRecyclerViewScrolled(View rv, int dy) {
+        try {
+            if (Math.abs(dy) > 50000) return; // Ignore layout measureSpec triggers (e.g. 1073743008)
+            if (Math.abs(dy) < 5) return;
+            if (!rv.isShown()) return; // Ignore background scrolls
+            if (!isMainTabScrollable(rv)) return;
+
+            View bottomNav = findBottomNavForScrollable(rv);
+            if (bottomNav == null) return;
+            onViewScrolled(bottomNav, dy);
+        } catch (Throwable t) {
+            XposedBridge.log(t);
+        }
+    }
+
     private static void onViewScrolled(View bottomNav, int dy) {
         if (bottomNav == null) return;
         
-        float density = bottomNav.getContext().getResources().getDisplayMetrics().density;
         View barTarget = getBarAnimationTarget(bottomNav);
+        if (!barTarget.isShown()) return; // Do not animate if bottom bar is hidden on screen
+        
+        float density = bottomNav.getContext().getResources().getDisplayMetrics().density;
         
         // Use cached preference to prevent disk I/O in hot scroll path
         if (!scrollHideEnabled) {
@@ -674,14 +813,15 @@ public class FloatingBottomBar extends Feature {
                 }
             }
         } catch (Throwable t) {
-            XposedBridge.log("[WAEX] Failed to hide dividers: " + t.getMessage());
+            XposedBridge.log(t);
         }
     }
 
     private static boolean isDescendantOfTabsPager(View view) {
         ViewParent parent = view.getParent();
         while (parent != null) {
-            if (parent.getClass().getName().contains("TabsPager")) {
+            String name = parent.getClass().getName();
+            if (name.contains("TabsPager") || name.toLowerCase().contains("pager") || name.equals("androidx.viewpager.widget.ViewPager")) {
                 return true;
             }
             if (parent instanceof View) {
@@ -736,6 +876,114 @@ public class FloatingBottomBar extends Feature {
         return null;
     }
 
+    private static View findBottomNavForScrollable(View scrollable) {
+        ViewGroup rootLayout = getRootLayout(scrollable);
+        View bottomNav = findBottomNavInRoot(rootLayout);
+        if (bottomNav != null) return bottomNav;
+
+        View rootView = scrollable != null ? scrollable.getRootView() : null;
+        if (rootView instanceof ViewGroup) {
+            bottomNav = findBottomNavInRoot((ViewGroup) rootView);
+            if (bottomNav != null) return bottomNav;
+        }
+
+        return null;
+    }
+
+    private static boolean isScrollableClass(Class<?> clazz) {
+        while (clazz != null && clazz != Object.class) {
+            String name = clazz.getName();
+            if (name.equals("androidx.recyclerview.widget.RecyclerView") || 
+                name.equals("android.widget.ScrollView") ||
+                name.contains("RecyclerView") || 
+                name.contains("ScrollView") ||
+                name.equals("android.widget.AbsListView") ||
+                name.contains("ListView")) {
+                return true;
+            }
+            clazz = clazz.getSuperclass();
+        }
+        return false;
+    }
+
+    private static boolean isInsideConversation(View view) {
+        ViewParent parent = view.getParent();
+        while (parent != null) {
+            if (parent instanceof View) {
+                View v = (View) parent;
+                if (v.getId() != View.NO_ID) {
+                    try {
+                        String entryName = v.getResources().getResourceEntryName(v.getId());
+                        if ("conversation_view_host".equals(entryName)) {
+                            return true;
+                        }
+                    } catch (Throwable ignored) {}
+                }
+            }
+            if (parent instanceof View) {
+                parent = ((View) parent).getParent();
+            } else {
+                break;
+            }
+        }
+        return false;
+    }
+
+    private static boolean isMainTabScrollable(View view) {
+        if (view == null) return false;
+
+        if (!isScrollableClass(view.getClass())) return false;
+        if (isInsideConversation(view)) return false;
+
+        boolean isDescendant = isDescendantOfTabsPager(view);
+        boolean isLarge = isLargeVerticalScrollable(view);
+        
+        // If it's a descendant of TabsPager and it is large vertical scrollable, it is a main tab list!
+        if (isDescendant && isLarge) {
+            return true;
+        }
+
+        // Fallback checks
+        try {
+            if (view.getId() != View.NO_ID) {
+                String entryName = view.getResources().getResourceEntryName(view.getId());
+                if ("list".equalsIgnoreCase(entryName) && isLarge) {
+                    return true;
+                }
+            }
+        } catch (Throwable ignored) {}
+
+        String className = view.getClass().getName();
+        if ((className.contains("WDSList") || className.contains("ObservableRecyclerView") || className.contains("CallsHistory")) && isLarge) {
+            return true;
+        }
+
+        return false;
+    }
+
+    private static boolean isLargeVerticalScrollable(View view) {
+        int height = view.getHeight();
+        int width = view.getWidth();
+        float density = view.getContext().getResources().getDisplayMetrics().density;
+
+        // If view is already measured, use its measured size
+        if (height > 0 && width > 0) {
+            return height >= dp(density, 280) && width >= dp(density, 240);
+        }
+
+        // If not measured yet (e.g. during onAttachedToWindow), check layout parameters
+        ViewGroup.LayoutParams lp = view.getLayoutParams();
+        if (lp != null) {
+            boolean heightOk = (lp.height == ViewGroup.LayoutParams.MATCH_PARENT || 
+                               lp.height >= dp(density, 280));
+            boolean widthOk = (lp.width == ViewGroup.LayoutParams.MATCH_PARENT || 
+                              lp.width >= dp(density, 240));
+            return heightOk && widthOk;
+        }
+
+        return false;
+    }
+
     private static int dp(float density, int value) {
         return (int) (value * density + 0.5f);
     }
@@ -769,7 +1017,6 @@ public class FloatingBottomBar extends Feature {
             lp.height = 0;
             group.setLayoutParams(lp);
         }
-        group.setVisibility(View.GONE);
     }
 
     private static ViewGroup findBottomOverlayRoot(View bottomNav, ViewGroup parentGroup, ViewGroup fallbackRoot) {
@@ -796,7 +1043,7 @@ public class FloatingBottomBar extends Feature {
             host.setBackground(createGlassOutlineShape(ctx, density));
             applyPillShadow(host, density);
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                host.setClipToOutline(true);
+                host.setClipToOutline(false);
                 host.setOutlineProvider(android.view.ViewOutlineProvider.BACKGROUND);
             }
 
@@ -814,9 +1061,13 @@ public class FloatingBottomBar extends Feature {
             host.addView(blurView, blurLp);
 
             bottomNav.setBackground(createGlassShape(ctx, density, false));
+            if (bottomNav instanceof ViewGroup) {
+                ((ViewGroup) bottomNav).setClipChildren(false);
+                ((ViewGroup) bottomNav).setClipToPadding(false);
+            }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
                 bottomNav.setBackgroundTintList(null);
-                bottomNav.setClipToOutline(true);
+                bottomNav.setClipToOutline(false);
                 bottomNav.setOutlineProvider(android.view.ViewOutlineProvider.BACKGROUND);
             }
 
@@ -833,7 +1084,7 @@ public class FloatingBottomBar extends Feature {
             targetRoot.addView(host, hostLp);
             return host;
         } catch (Throwable t) {
-            XposedBridge.log("[WAEX] Glass host install failed: " + t.getMessage());
+            XposedBridge.log(t);
             glassHosts.remove(bottomNav);
             glassBlurViews.remove(bottomNav);
             targetRoot.addView(bottomNav, hostLp);
@@ -858,7 +1109,7 @@ public class FloatingBottomBar extends Feature {
                     .setBlurRadius(18f)
                     .setOverlayColor(getGlassOverlayColor(ctx));
         } catch (Throwable t) {
-            XposedBridge.log("[WAEX] Blur setup failed: " + t.getMessage());
+            XposedBridge.log(t);
         }
     }
 
@@ -888,15 +1139,19 @@ public class FloatingBottomBar extends Feature {
             if (ctx == null) return;
 
             bottomNav.setBackground(createGlassShape(ctx, density, true));
+            if (bottomNav instanceof ViewGroup) {
+                ((ViewGroup) bottomNav).setClipChildren(false);
+                ((ViewGroup) bottomNav).setClipToPadding(false);
+            }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
                 bottomNav.setBackgroundTintList(null);
                 bottomNav.setOutlineProvider(android.view.ViewOutlineProvider.BACKGROUND);
-                bottomNav.setClipToOutline(true);
+                bottomNav.setClipToOutline(false);
             }
             applyPillShadow(bottomNav, density);
 
         } catch (Throwable e) {
-            XposedBridge.log("[WAEX] applyGlassmorphism outer failed: " + e.getMessage());
+            XposedBridge.log(e);
         }
     }
 
@@ -905,6 +1160,459 @@ public class FloatingBottomBar extends Feature {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
             view.setTranslationZ(PILL_TRANSLATION_Z_DP * density);
         }
+    }
+
+    /**
+     * Replaces the Material 3 green chip active indicator on each tab item
+     * with a circular/capsule translucent glow/spotlight effect wrapping both the icon and label.
+     */
+    private void replaceActiveIndicatorWithGlow(View tabFrame, float density) {
+        try {
+            // Style current view hierarchy
+            findAndStyleActiveIndicators(tabFrame, density);
+            
+            // Watch for dynamically added children anywhere in the tree
+            if (tabFrame instanceof ViewGroup) {
+                ViewGroup group = (ViewGroup) tabFrame;
+                group.setOnHierarchyChangeListener(new ViewGroup.OnHierarchyChangeListener() {
+                    @Override
+                    public void onChildViewAdded(View parent, View child) {
+                        findAndStyleActiveIndicators(child, density);
+                        
+                        // If the child is a ViewGroup, also watch its hierarchy changes
+                        if (child instanceof ViewGroup) {
+                            ((ViewGroup) child).setOnHierarchyChangeListener(this);
+                        }
+                    }
+
+                    @Override
+                    public void onChildViewRemoved(View parent, View child) {}
+                });
+                
+                // Recursively set the listener on all existing nested view groups
+                setupHierarchyListenersRecursive(group, density);
+            }
+        } catch (Throwable t) {
+            XposedBridge.log(t);
+        }
+    }
+
+    private void setupHierarchyListenersRecursive(ViewGroup group, final float density) {
+        for (int i = 0; i < group.getChildCount(); i++) {
+            View child = group.getChildAt(i);
+            if (child instanceof ViewGroup) {
+                ViewGroup childGroup = (ViewGroup) child;
+                childGroup.setOnHierarchyChangeListener(new ViewGroup.OnHierarchyChangeListener() {
+                    @Override
+                    public void onChildViewAdded(View parent, View childView) {
+                        findAndStyleActiveIndicators(childView, density);
+                        if (childView instanceof ViewGroup) {
+                            ((ViewGroup) childView).setOnHierarchyChangeListener(this);
+                        }
+                    }
+
+                    @Override
+                    public void onChildViewRemoved(View parent, View childView) {}
+                });
+                setupHierarchyListenersRecursive(childGroup, density);
+            }
+        }
+    }
+
+
+
+    /**
+     * Recursively traverses views to find active indicator views and style their tab item parents.
+     */
+    private void findAndStyleActiveIndicators(View view, float density) {
+        if (view == null) return;
+        
+        if (isActiveIndicatorView(view)) {
+            setupGlowOnTabItem(view, density);
+            return;
+        }
+
+        if (view instanceof ViewGroup) {
+            ViewGroup group = (ViewGroup) view;
+            
+            // Check if this group matches the pattern of an icon container (ImageView + simple View)
+            View indicator = findActiveIndicatorInGroup(group);
+            if (indicator != null) {
+                setupGlowOnTabItem(indicator, density);
+                return;
+            }
+            
+            for (int i = 0; i < group.getChildCount(); i++) {
+                findAndStyleActiveIndicators(group.getChildAt(i), density);
+            }
+        }
+    }
+
+    private static boolean isActiveIndicatorView(View view) {
+        if (view.getId() != View.NO_ID) {
+            try {
+                String entryName = view.getResources().getResourceEntryName(view.getId());
+                if (entryName != null && entryName.contains("active_indicator")) {
+                    return true;
+                }
+            } catch (Throwable ignored) {}
+        }
+        String name = view.getClass().getName();
+        return name.contains("ActiveIndicator") || name.endsWith("ActiveIndicatorView");
+    }
+
+    private static View findActiveIndicatorInGroup(ViewGroup group) {
+        View candidateIndicator = null;
+        boolean hasImageView = false;
+
+        for (int i = 0; i < group.getChildCount(); i++) {
+            View child = group.getChildAt(i);
+            if (child instanceof android.widget.ImageView) {
+                hasImageView = true;
+            } else if (child != null && !(child instanceof android.widget.TextView) && !(child instanceof ViewGroup)) {
+                candidateIndicator = child;
+            }
+        }
+
+        if (hasImageView && candidateIndicator != null) {
+            return candidateIndicator;
+        }
+        return null;
+    }
+
+    /**
+     * Replaces the background of the tab item view with our custom StateListDrawable
+     * and makes the native active indicator invisible.
+     */
+    private void setupGlowOnTabItem(View activeIndicator, float density) {
+        try {
+            // Hide the default active indicator view by making its background transparent
+            activeIndicator.setBackground(new ColorDrawable(0));
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                activeIndicator.setBackgroundTintList(null);
+            }
+
+            // Get the tab item view (grandparent of activeIndicator)
+            ViewParent parent = activeIndicator.getParent();
+            if (parent == null) return;
+            ViewParent grandparent = parent.getParent();
+            if (grandparent instanceof ViewGroup) {
+                ViewGroup tabItem = (ViewGroup) grandparent;
+                
+                // Prevent duplicate styling on this tab item
+                if (styledIndicators.containsKey(tabItem)) {
+                    return;
+                }
+                styledIndicators.put(tabItem, true);
+
+                // Find icon container and labels group to decrease spacing
+                View iconContainer = null;
+                View labelsGroup = null;
+                for (int i = 0; i < tabItem.getChildCount(); i++) {
+                    View child = tabItem.getChildAt(i);
+                    if (child.getId() != View.NO_ID) {
+                        try {
+                            String entryName = child.getResources().getResourceEntryName(child.getId());
+                            if (entryName != null) {
+                                if (entryName.contains("icon_container")) {
+                                    iconContainer = child;
+                                } else if (entryName.contains("labels_group")) {
+                                    labelsGroup = child;
+                                }
+                            }
+                        } catch (Throwable ignored) {}
+                    }
+                    if (iconContainer == null && child instanceof android.widget.FrameLayout) {
+                        iconContainer = child;
+                    }
+                    if (labelsGroup == null && child.getClass().getName().contains("BaselineLayout")) {
+                        labelsGroup = child;
+                    }
+                }
+
+                final View finalIconContainer = iconContainer;
+                final View finalLabelsGroup = labelsGroup;
+
+                // Add layout change listener to enforce smaller height and compact spacing dynamically
+                View.OnLayoutChangeListener layoutListener = new View.OnLayoutChangeListener() {
+                    private boolean isUpdating = false;
+
+                    @Override
+                    public void onLayoutChange(View v, int left, int top, int right, int bottom,
+                                               int oldLeft, int oldTop, int oldRight, int oldBottom) {
+                        if (isUpdating) return;
+                        isUpdating = true;
+                        try {
+                            // Enforce compact height of the tab item
+                            ViewGroup.LayoutParams lp = v.getLayoutParams();
+                            int targetHeight = (int) (50 * density);
+                            if (lp != null && lp.height != targetHeight) {
+                                lp.height = targetHeight;
+                                v.setLayoutParams(lp);
+                            }
+
+                            // Center the icon container slightly higher
+                            if (finalIconContainer != null) {
+                                finalIconContainer.setTranslationY(-7.5f * density);
+                            }
+
+                            // Shift the labels group up slightly and remove bottom padding to minimize gap without overlap
+                            if (finalLabelsGroup != null) {
+                                finalLabelsGroup.setTranslationY(-1.5f * density);
+                                int targetBottomPadding = 0;
+                                if (finalLabelsGroup.getPaddingBottom() != targetBottomPadding) {
+                                    finalLabelsGroup.setPadding(
+                                        finalLabelsGroup.getPaddingLeft(),
+                                        finalLabelsGroup.getPaddingTop(),
+                                        finalLabelsGroup.getPaddingRight(),
+                                        targetBottomPadding
+                                    );
+                                }
+                                // Make text size a bit smaller
+                                if (finalLabelsGroup instanceof ViewGroup) {
+                                    ViewGroup labelVg = (ViewGroup) finalLabelsGroup;
+                                    for (int j = 0; j < labelVg.getChildCount(); j++) {
+                                        View child = labelVg.getChildAt(j);
+                                        if (child instanceof android.widget.TextView) {
+                                            android.widget.TextView tv = (android.widget.TextView) child;
+                                            tv.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 10.0f);
+                                        }
+                                    }
+                                }
+                            }
+                        } finally {
+                            isUpdating = false;
+                        }
+                    }
+                };
+
+                tabItem.addOnLayoutChangeListener(layoutListener);
+                // Trigger immediately to force initial layout update
+                layoutListener.onLayoutChange(tabItem, 0, 0, 0, 0, 0, 0, 0, 0);
+
+                // Set the StateListDrawable background on the tab item view
+                Drawable bg = createTabItemBackground(tabItem.getContext(), density);
+                tabItem.setBackground(bg);
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                    tabItem.setBackgroundTintList(null);
+                }
+
+                // Ensure the tab item view doesn't clip our background
+                tabItem.setClipChildren(false);
+                tabItem.setClipToPadding(false);
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                    tabItem.setClipToOutline(false);
+                }
+                if (tabItem.getParent() instanceof ViewGroup) {
+                    ViewGroup pg = (ViewGroup) tabItem.getParent();
+                    pg.setClipChildren(false);
+                    pg.setClipToPadding(false);
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                        pg.setClipToOutline(false);
+                    }
+                }
+            }
+        } catch (Throwable t) {
+            XposedBridge.log(t);
+        }
+    }
+
+    private static Drawable createTabItemBackground(android.content.Context ctx, float density) {
+        StateListDrawable sld = new StateListDrawable();
+        Drawable glow = new LiquidOvalDrawable(ctx, density);
+        
+        sld.addState(new int[]{android.R.attr.state_selected}, glow);
+        sld.addState(new int[]{android.R.attr.state_checked}, glow);
+        sld.addState(new int[]{}, new ColorDrawable(0x00000000));
+        
+        return sld;
+    }
+
+    /**
+     * Custom drawable that paints a centered vertical-leaning glass oval/capsule with iridescent chromatic curves.
+     */
+    private static class LiquidOvalDrawable extends Drawable {
+        private final Paint fillPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final Paint strokePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final Paint glowPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final Paint topRainbow = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final Paint bottomRainbow = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final Paint shadowPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final boolean isNight;
+        private final int accentColor;
+        private final float density;
+
+        public LiquidOvalDrawable(android.content.Context ctx, float density) {
+            this.density = density;
+            this.isNight = DesignUtils.isNightMode(ctx);
+            this.accentColor = DesignUtils.getThemeAccentColor(ctx);
+            
+            fillPaint.setStyle(Paint.Style.FILL);
+            
+            strokePaint.setStyle(Paint.Style.STROKE);
+            strokePaint.setStrokeWidth(1.0f * density);
+            strokePaint.setColor(isNight ? 0x45FFFFFF : 0x25000000);
+            
+            glowPaint.setStyle(Paint.Style.STROKE);
+            glowPaint.setStrokeWidth(1.2f * density);
+            
+            topRainbow.setStyle(Paint.Style.STROKE);
+            topRainbow.setStrokeWidth(0.8f * density);
+            
+            bottomRainbow.setStyle(Paint.Style.STROKE);
+            bottomRainbow.setStrokeWidth(0.8f * density);
+
+            shadowPaint.setStyle(Paint.Style.FILL);
+            shadowPaint.setColor(isNight ? 0x66000000 : 0x2C000000);
+        }
+
+        @Override
+        public void draw(@NonNull Canvas canvas) {
+            Rect bounds = getBounds();
+            if (bounds.isEmpty()) return;
+
+            float cx = bounds.exactCenterX();
+            float cy = bounds.exactCenterY(); // Symmetrically centered relative to the tab item bounds
+
+            // Vertical oval bounds that overflow the bottom bar (width increased to 78% as requested)
+            float ovalWidth = bounds.width() * 0.78f;
+            float ovalHeight = bounds.height() + 16 * density; // Symmetrical overflow of 8dp top/bottom
+
+            float left = cx - ovalWidth / 2f;
+            float right = cx + ovalWidth / 2f;
+            float top = cy - ovalHeight / 2f;
+            float bottom = cy + ovalHeight / 2f;
+
+            RectF rectF = new RectF(left, top, right, bottom);
+            float cornerRadius = ovalWidth / 2f; // Capsule / Oval shape
+
+            // 0. Soft dark drop shadow behind the frosted fill to increase the "3D glass" depth
+            canvas.drawRoundRect(new RectF(left, top + 1.5f * density, right, bottom + 1.5f * density), cornerRadius, cornerRadius, shadowPaint);
+
+            // 1. Frosted Glass Fill Gradient
+            int startColor = isNight ? 0x2DFFFFFF : 0x70FFFFFF;
+            int midColor = isNight ? 0x15FFFFFF : 0x40FFFFFF;
+            int endColor = isNight ? 0x22FFFFFF : 0x55FFFFFF;
+            
+            android.graphics.LinearGradient fillGradient = new android.graphics.LinearGradient(
+                    cx, top, cx, bottom,
+                    new int[]{startColor, midColor, endColor},
+                    new float[]{0f, 0.5f, 1f},
+                    Shader.TileMode.CLAMP
+            );
+            fillPaint.setShader(fillGradient);
+            canvas.drawRoundRect(rectF, cornerRadius, cornerRadius, fillPaint);
+
+            // Save canvas and clip to capsule path to ensure highlights do not draw outside the shape
+            canvas.save();
+            android.graphics.Path clipPath = new android.graphics.Path();
+            clipPath.addRoundRect(rectF, cornerRadius, cornerRadius, android.graphics.Path.Direction.CW);
+            canvas.clipPath(clipPath);
+
+            // 3. Specular highlight glow at top edge (drawn inside the clipped area)
+            android.graphics.LinearGradient glowGradient = new android.graphics.LinearGradient(
+                    left, top, right, top + 10 * density,
+                    new int[]{0x00FFFFFF, isNight ? 0x77FFFFFF : 0x55FFFFFF, 0x00FFFFFF},
+                    new float[]{0f, 0.5f, 1f},
+                    Shader.TileMode.CLAMP
+            );
+            glowPaint.setShader(glowGradient);
+            canvas.drawArc(new RectF(left + 1f, top + 1f, right - 1f, top + 15 * density), 200, 140, false, glowPaint);
+
+            // 4. Glassy Pixel Inner Edge Highlights (Clipped to draw purely inside the shape)
+            // Top Curve: Thin, sharp 1px glass highlight
+            android.graphics.LinearGradient topGrad = new android.graphics.LinearGradient(
+                    left + 8 * density, top, right - 8 * density, top,
+                    new int[]{0x00FFFFFF, 0xB8FFFFFF, 0xEEFFFFFF, 0xB8FFFFFF, 0x00FFFFFF},
+                    new float[]{0f, 0.25f, 0.5f, 0.75f, 1f},
+                    Shader.TileMode.CLAMP
+            );
+            topRainbow.setShader(topGrad);
+            canvas.drawArc(new RectF(left, top, right, top + 16 * density), 210, 120, false, topRainbow);
+
+            // Bottom Curve: Thin, sharp 1px glass highlight mirroring bottom edge
+            android.graphics.LinearGradient bottomGrad = new android.graphics.LinearGradient(
+                    left + 8 * density, bottom, right - 8 * density, bottom,
+                    new int[]{0x00FFFFFF, 0x68FFFFFF, 0x9EFFFFFF, 0x68FFFFFF, 0x00FFFFFF},
+                    new float[]{0f, 0.25f, 0.5f, 0.75f, 1f},
+                    Shader.TileMode.CLAMP
+            );
+            bottomRainbow.setShader(bottomGrad);
+            canvas.drawArc(new RectF(left, bottom - 16 * density, right, bottom), 30, 120, false, bottomRainbow);
+
+            // Restore canvas clip state
+            canvas.restore();
+
+            // 2. White Translucent Border (drawn on top of the shape so it is crisp and unclipped)
+            canvas.drawRoundRect(rectF, cornerRadius, cornerRadius, strokePaint);
+        }
+
+        @Override
+        public void setAlpha(int alpha) {
+            fillPaint.setAlpha(alpha);
+            strokePaint.setAlpha(alpha);
+            glowPaint.setAlpha(alpha);
+            topRainbow.setAlpha(alpha);
+            bottomRainbow.setAlpha(alpha);
+            shadowPaint.setAlpha(alpha);
+        }
+
+        @Override
+        public void setColorFilter(android.graphics.ColorFilter colorFilter) {
+            // Ignore system/library tints to keep true glass colors
+        }
+
+        @Override
+        public int getOpacity() {
+            return android.graphics.PixelFormat.TRANSLUCENT;
+        }
+    }
+
+    /**
+     * Finds the NavigationBarMenuView within the tab frame hierarchy.
+     */
+    private static View findNavigationBarMenuView(View view) {
+        if (view == null) return null;
+        String name = view.getClass().getName();
+        if (name.contains("NavigationBarMenuView") || name.contains("BottomNavigationMenuView")) {
+            return view;
+        }
+        if (view instanceof ViewGroup) {
+            ViewGroup group = (ViewGroup) view;
+            for (int i = 0; i < group.getChildCount(); i++) {
+                View found = findNavigationBarMenuView(group.getChildAt(i));
+                if (found != null) return found;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Recursively searches for a field by name up the class hierarchy.
+     */
+    private static java.lang.reflect.Field findFieldRecursive(Class<?> clazz, String fieldName) {
+        Class<?> current = clazz;
+        while (current != null && current != Object.class) {
+            try {
+                return current.getDeclaredField(fieldName);
+            } catch (NoSuchFieldException ignored) {}
+            current = current.getSuperclass();
+        }
+        return null;
+    }
+
+    /**
+     * Recursively searches for a method by name and parameter types up the class hierarchy.
+     */
+    private static java.lang.reflect.Method findMethodRecursive(Class<?> clazz, String methodName, Class<?>... paramTypes) {
+        Class<?> current = clazz;
+        while (current != null && current != Object.class) {
+            try {
+                return current.getDeclaredMethod(methodName, paramTypes);
+            } catch (NoSuchMethodException ignored) {}
+            current = current.getSuperclass();
+        }
+        return null;
     }
 
     private static GradientDrawable createGlassShape(android.content.Context ctx, float density, boolean includeFill) {
@@ -967,6 +1675,34 @@ public class FloatingBottomBar extends Feature {
         }
     }
 
+
+    private static View findConversationViewHost(View bottomNav) {
+        try {
+            ViewGroup root = getRootLayout(bottomNav);
+            if (root != null) {
+                int resId = bottomNav.getContext().getResources().getIdentifier("conversation_view_host", "id", bottomNav.getContext().getPackageName());
+                if (resId != 0 && resId != View.NO_ID) {
+                    return root.findViewById(resId);
+                }
+            }
+        } catch (Throwable ignored) {}
+        return null;
+    }
+
+    private static ViewGroup findMenuView(View tabFrame) {
+        if (!(tabFrame instanceof ViewGroup)) return null;
+        ViewGroup group = (ViewGroup) tabFrame;
+        for (int i = 0; i < group.getChildCount(); i++) {
+            View child = group.getChildAt(i);
+            if (child instanceof ViewGroup) {
+                ViewGroup childGroup = (ViewGroup) child;
+                if (childGroup.getChildCount() > 0) {
+                    return childGroup;
+                }
+            }
+        }
+        return null;
+    }
 
     @NonNull
     @Override

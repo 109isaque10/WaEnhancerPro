@@ -61,7 +61,8 @@ android {
         val githubToken = (project.findProperty("GH_PUBLIC_TOKEN")?.toString() ?: env.getProperty("GH_PUBLIC_TOKEN") ?: "").trim()
         buildConfigField("String", "GH_PUBLIC_TOKEN", "\"$githubToken\"")
 
-        buildConfigField("String", "NOTICES_URL", "\"https://waenhancer.com/notices.json\"")
+        val noticesUrl = (project.findProperty("NOTICES_URL")?.toString() ?: env.getProperty("NOTICES_URL") ?: "https://waenhancer.com/notices.json").trim()
+        buildConfigField("String", "NOTICES_URL", "\"$noticesUrl\"")
         // Expose pro feature availability to app code
         buildConfigField("boolean", "HAS_PRO_FEATURES", hasProSources.toString())
         multiDexEnabled = true

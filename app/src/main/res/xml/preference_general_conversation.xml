@@ -35,7 +35,7 @@
             app:summary="@string/antirevokestatus_sum"
             app:title="@string/antirevokestatus" />
 
-        <com.jaredrummler.android.colorpicker.ColorPreferenceCompat
+        <com.jaredrummler.android.colorpicker.ColorPreferenceWithDefault
             app:cpv_showAlphaSlider="true"
             app:key="deleted_message_color"
             app:summary="@string/deleted_message_color_sum"

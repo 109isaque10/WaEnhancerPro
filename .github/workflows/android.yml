@@ -37,6 +37,7 @@ jobs:
     env:
       BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
       CHANNEL_ID: ${{ secrets.CHANNEL_ID }}
+      NOTICES_URL: ${{ secrets.NOTICES_URL }}
     steps:
       # ─────────────────────────────────────────────────────────────────
       # Checkout public repo (without recursive submodule — we handle the
@@ -229,15 +230,21 @@ jobs:
             BUILD_TASKS="$BUILD_TASKS uploadCrashlyticsMappingFileWhatsappRelease"
           fi
           
+          NOTICES_URL_FLAG=""
+          if [ -n "$NOTICES_URL" ]; then
+            NOTICES_URL_FLAG="-PNOTICES_URL=${NOTICES_URL}"
+          fi
+
           if [ -n "${{ secrets.KEY_STORE }}" ]; then
             echo "${{ secrets.KEY_STORE }}" | base64 --decode > release.jks
             ./gradlew $BUILD_TASKS -Pminify=true \
               -PandroidStoreFile=release.jks \
               -PandroidStorePassword='${{ secrets.KEY_STORE_PASSWORD }}' \
               -PandroidKeyAlias='${{ secrets.ALIAS }}' \
-              -PandroidKeyPassword='${{ secrets.KEY_PASSWORD }}'
+              -PandroidKeyPassword='${{ secrets.KEY_PASSWORD }}' \
+              $NOTICES_URL_FLAG
           else
-            ./gradlew $BUILD_TASKS -Pminify=true
+            ./gradlew $BUILD_TASKS -Pminify=true $NOTICES_URL_FLAG
           fi
 
       - name: Rename APK to versioned name
