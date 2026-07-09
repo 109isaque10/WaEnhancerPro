@@ -202,7 +202,7 @@ public class LicenseManager {
     private static long parseExpiresAt(JSONObject obj) {
         
         // If string parsing fails, try to parse it directly as a millisecond timestamp
-        return obj.optLong("expires_at", 99999999999);
+        return obj.optLong("expires_at", 9999999);
     }
 
     public static void makePrefsWorldReadable(Context context) {
