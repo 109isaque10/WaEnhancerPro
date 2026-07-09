@@ -2,6 +2,8 @@ package com.waenhancer.xposed.utils;
 
 import android.content.Context;
 import android.content.SharedPreferences;
+import androidx.preference.PreferenceManager;
+import android.content.Intent;
 import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
@@ -154,17 +156,16 @@ public class LicenseManager {
         }
 
         
-                if ("success".equalsIgnoreCase(status)) {
+                
                     // Wipe all local license data
-                    clearLicenseData(safePrefs, context, "Your device has been unlinked from this license key.");
-                    ProHelper.setForceFree(true);
+        clearLicenseData(safePrefs, context, "Your device has been unlinked from this license key.");
+        ProHelper.setForceFree(true);
 
                     // Broadcast status change
-                    android.content.Intent broadcastIntent = new android.content.Intent(
-                            context.getPackageName() + ".ACTION_PRO_STATUS_CHANGED");
-                    broadcastIntent.setPackage(context.getPackageName());
-                    context.sendBroadcast(broadcastIntent);
-                }
+        android.content.Intent broadcastIntent = new android.content.Intent(
+        context.getPackageName() + ".ACTION_PRO_STATUS_CHANGED");
+        broadcastIntent.setPackage(context.getPackageName());
+        context.sendBroadcast(broadcastIntent);
 		}
 
     private static void postUnlinkError(final UnlinkCallback callback, final String message) {
@@ -202,7 +203,7 @@ public class LicenseManager {
     private static long parseExpiresAt(JSONObject obj) {
         
         // If string parsing fails, try to parse it directly as a millisecond timestamp
-        return obj.optLong("expires_at", 9999999);
+        return obj.optLong("expires_at", Long.MAX_VALUE);
     }
 
     public static void makePrefsWorldReadable(Context context) {
