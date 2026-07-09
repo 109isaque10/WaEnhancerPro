@@ -239,4 +239,4 @@ public class LicenseManager {
     private static void postError(final LicenseCallback callback, final String message) {
         mainHandler.post(() -> callback.onError(message));
     }
-}
+} 
