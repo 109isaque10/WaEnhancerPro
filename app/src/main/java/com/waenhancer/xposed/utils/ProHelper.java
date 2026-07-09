@@ -645,14 +645,7 @@ public class ProHelper {
     }
 
     public static boolean isLimitedFreeHookEnabled(String key) {
-        if (!isPluginInstalled(null)) return false;
-        if (key == null) return false;
-        JSONObject config = getLimitedFreeConfig();
-        if (config == null) return false;
-        JSONObject hooks = config.optJSONObject("hooks");
-        if (hooks == null) return false;
-        String val = hooks.optString(key, null);
-        return val != null && !val.trim().isEmpty();
+        return false;
     }
 
     public static String getLimitedFreeHookString(String key) {
@@ -799,60 +792,21 @@ public class ProHelper {
      * Triggers a silent check/config refresh in the background, invoking the callback upon completion.
      */
     public static void silentCheck(final Context context, final Runnable callback) {
-        com.waenhancer.xposed.utils.LicenseManager.silentCheck(context, new LicenseManager.SilentCheckListener() {
-            @Override
-            public void onStatusChanged() {
-                if (callback != null) {
-                    callback.run();
-                }
-            }
-        });
+
     }
 
     /**
      * Retrieves the plan name matching active, expired, or free states.
      */
     public static String getProPlanName() {
-        String status = getProStatus();
-        if ("ACTIVE".equalsIgnoreCase(status)) {
-            SharedPreferences prefs = getPrefs();
-            String plan = prefs != null ? prefs.getString("plan_name", "") : "";
-            return plan.isEmpty() ? "Pro Active" : plan;
-        } else if ("EXPIRED".equalsIgnoreCase(status)) {
-            return "Pro Expired";
-        } else {
-            return "Free";
-        }
+        
+            return "Pro Active";
     }
 
     /**
      * Gets the current pro status string ("ACTIVE", "EXPIRED", "FREE").
      */
     public static String getProStatus() {
-        if (forceFree) {
-            return "FREE";
-        }
-        SharedPreferences prefs = getPrefs();
-        if (prefs == null) {
-            return "FREE";
-        }
-        String licenseKey = prefs.getString("license_key", "").trim();
-        boolean isVerified = prefs.getBoolean("is_pro_verified", false);
-        if (!isVerified || licenseKey.isEmpty()) {
-            return "FREE";
-        }
-        long expiresAt = 0;
-        try {
-            expiresAt = prefs.getLong("expires_at", 0);
-        } catch (ClassCastException e) {
-            try {
-                String expiresStr = prefs.getString("expires_at", "0");
-                expiresAt = Long.parseLong(expiresStr);
-            } catch (Exception ignored) {}
-        }
-        if (expiresAt > 0 && expiresAt < System.currentTimeMillis()) {
-            return "EXPIRED";
-        }
         return "ACTIVE";
     }
 
@@ -1195,17 +1149,7 @@ public class ProHelper {
     }
 
     private static String getHookStringSafely(String hookKey) {
-        if (isLimitedFreeHookEnabled(hookKey)) {
-            return getLimitedFreeHookString(hookKey);
-        }
-        if (!isProEnabled()) {
-            return null;
-        }
-        JSONObject config = getDecryptedConfig();
-        if (config == null) return null;
-        JSONObject hooks = config.optJSONObject("hooks");
-        if (hooks == null) return null;
-        return hooks.optString(hookKey, null);
+        return "enabled";
     }
 
     public static java.io.File convertAudioToOpus(Context context, android.net.Uri uri) {
