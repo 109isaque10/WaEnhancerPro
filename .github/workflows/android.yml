@@ -4,7 +4,7 @@ on:
   push:
     branches: ["master", "beta"] 
 
-jobs:
+jobs: 
   check-build-flag:
     runs-on: ubuntu-latest
     outputs:
