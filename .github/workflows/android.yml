@@ -178,47 +178,23 @@ jobs:
           GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
         run: |
           if [ -n "$GOOGLE_SERVICES_JSON" ]; then
+            # Check if it starts with { (raw JSON) or needs decoding
             if [[ "$GOOGLE_SERVICES_JSON" == \{* ]]; then
               echo "$GOOGLE_SERVICES_JSON" > app/google-services.json
+              echo "Google Services: Configuration injected from raw JSON secret"
             else
               echo "$GOOGLE_SERVICES_JSON" | base64 --decode > app/google-services.json
+              echo "Google Services: Configuration injected from base64 secret"
             fi
-            echo "HAS_REAL_GS=true" >> $GITHUB_ENV
-            echo "Google Services: Real configuration injected."
+            
+            # Verify file exists and is not empty
+            if [ -s "app/google-services.json" ]; then
+              echo "Google Services: app/google-services.json created successfully"
+            else
+              echo "::warning::Google Services file was not created or is empty!"
+            fi
           else
-            # Write a dummy google-services.json that disables all services
-            cat > app/google-services.json <<'EOF'
-        {
-          "project_info": {
-            "project_number": "000000000000",
-            "project_id": "dummy"
-          },
-          "client": [
-            {
-              "client_info": {
-                "mobilesdk_app_id": "1:000000000000:android:0000000000000000",
-                "android_client_info": {
-                  "package_name": "com.waenhancer"
-                }
-              },
-              "oauth_client": [],
-              "api_key": [
-                {
-                  "current_key": "dummy_key"
-                }
-              ],
-              "services": {
-                "analytics_service": { "status": 0 },
-                "appinvite_service": { "status": 0 },
-                "ads_service": { "status": 0 }
-              }
-            }
-          ],
-          "configuration_version": "1"
-        }
-        EOF
-            echo "HAS_REAL_GS=false" >> $GITHUB_ENV
-            echo "Google Services: Dummy configuration created (Crashlytics disabled)."
+            echo "Google Services: GOOGLE_SERVICES_JSON secret is missing. Crashlytics will be disabled for this build."
           fi
 
       - name: Build WhatsApp flavor
