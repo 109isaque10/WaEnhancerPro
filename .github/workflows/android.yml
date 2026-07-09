@@ -2,7 +2,7 @@ name: Android CI
 
 on:
   push:
-    branches: ["master", "beta"]
+    branches: ["master", "beta"] 
 
 jobs:
   check-build-flag:
