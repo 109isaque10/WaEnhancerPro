@@ -2,7 +2,7 @@ To honour the JVM settings for this build a single-use Daemon process will be fo
 Daemon will be stopped at the end of the build 
 WaEnhancerX: Private pro submodule detected — building with pro features.
 > Task :api:preBuild UP-TO-DATE
-> Task :pro:preBuild UP-TO-DATE
+> Task :pro:preBuild Up-to-date 
 > Task :api:preDebugBuild UP-TO-DATE
 > Task :pro:preDebugBuild UP-TO-DATE
 > Task :pro:mergeDebugNativeDebugMetadata NO-SOURCE
