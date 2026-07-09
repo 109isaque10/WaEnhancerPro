@@ -173,7 +173,7 @@ jobs:
           git commit -m "chore(release): bump to ${NEW_VERSION_NAME} (${NEW_VERSION_CODE}) [skip ci]"
           git push
 
-- name: Setup Google Services
+      - name: Setup Google Services
         env:
           GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
         run: |
