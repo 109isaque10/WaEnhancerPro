@@ -164,9 +164,8 @@ public class LicenseManager {
                             context.getPackageName() + ".ACTION_PRO_STATUS_CHANGED");
                     broadcastIntent.setPackage(context.getPackageName());
                     context.sendBroadcast(broadcastIntent);
-                } 
-        });
-    }
+                }
+		}
 
     private static void postUnlinkError(final UnlinkCallback callback, final String message) {
         mainHandler.post(() -> callback.onError(message));
